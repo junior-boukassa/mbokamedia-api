@@ -42,5 +42,19 @@ class AppServiceProvider extends ServiceProvider
                     ], 429);
                 });
         });
+
+        RateLimiter::for('api', static function (Request $request): Limit {
+            $key = (string) ($request->user()?->getAuthIdentifier() ?: $request->ip());
+
+            return Limit::perMinute((int) env('API_RATE_LIMIT', 60))
+                ->by($key)
+                ->response(static function () {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Too many requests. Please slow down.',
+                        'data' => null,
+                    ], 429);
+                });
+        });
     }
 }

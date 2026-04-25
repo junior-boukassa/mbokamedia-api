@@ -11,7 +11,9 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $shouldExposePermissions = $request->is('api/auth/login')
+            || $request->is('api/v1/auth/login')
             || $request->is('api/auth/me')
+            || $request->is('api/v1/auth/me')
             || $request->user()?->is($this->resource)
             || $request->user()?->can('assign roles');
 

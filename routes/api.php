@@ -24,7 +24,35 @@ use App\Http\Controllers\Api\Public\NewsletterController as PublicNewsletterCont
 use App\Http\Controllers\Api\Public\NotificationController as PublicNotificationController;
 use App\Http\Controllers\Api\Public\SettingController as PublicSettingController;
 use App\Http\Controllers\Api\Public\VideoController as PublicVideoController;
+use App\Http\Controllers\Api\V1\ArticleController as V1ArticleController;
+use App\Http\Controllers\Api\V1\Auth\AuthController as V1AuthController;
+use App\Http\Controllers\Api\V1\HealthController as V1HealthController;
 use Illuminate\Support\Facades\Route;
+
+Route::prefix('v1')->group(function (): void {
+    Route::get('health', V1HealthController::class);
+
+    Route::prefix('auth')->group(function (): void {
+        Route::post('register', [V1AuthController::class, 'register']);
+        Route::post('login', [V1AuthController::class, 'login'])->middleware('throttle:api');
+        Route::post('refresh', [V1AuthController::class, 'refresh']);
+
+        Route::middleware('auth:api')->group(function (): void {
+            Route::get('me', [V1AuthController::class, 'me']);
+            Route::post('logout', [V1AuthController::class, 'logout']);
+        });
+    });
+
+    Route::get('articles', [V1ArticleController::class, 'index']);
+    Route::get('articles/{article}', [V1ArticleController::class, 'show']);
+
+    Route::middleware('auth:api')->group(function (): void {
+        Route::post('articles', [V1ArticleController::class, 'store']);
+        Route::put('articles/{article}', [V1ArticleController::class, 'update']);
+        Route::patch('articles/{article}', [V1ArticleController::class, 'update']);
+        Route::delete('articles/{article}', [V1ArticleController::class, 'destroy']);
+    });
+});
 
 Route::prefix('auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:admin-login');

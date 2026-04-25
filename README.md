@@ -8,10 +8,11 @@ Backend API Laravel pour Mboka Media, concu pour alimenter:
 
 ## Stack
 
-- Laravel 13
+- Laravel 11
 - PHP 8.3+
-- PostgreSQL
+- PostgreSQL en local / MySQL pour le deploiement Hostinger
 - Laravel Sanctum
+- JWT via `tymon/jwt-auth` pour l'API versionnee `/api/v1`
 - spatie/laravel-permission
 - API Resources
 - Form Requests
