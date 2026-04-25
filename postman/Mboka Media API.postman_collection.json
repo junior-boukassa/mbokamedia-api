@@ -1,0 +1,485 @@
+{
+  "info": {
+    "_postman_id": "8fc8f287-52f0-4e7d-9a49-c2b0210c0dbd",
+    "name": "Mboka Media API",
+    "description": "Collection Postman complete pour le backend API Laravel de Mboka Media.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "article_id", "value": "1" },
+    { "key": "article_slug", "value": "deserunt-quis-aperiam-asperiores-in-cupiditate" },
+    { "key": "category_id", "value": "1" },
+    { "key": "tag_id", "value": "1" },
+    { "key": "video_id", "value": "1" },
+    { "key": "video_slug", "value": "laudantium-iste-quae-a-aliquam-aut-delectus" },
+    { "key": "breaking_news_id", "value": "1" },
+    { "key": "user_id", "value": "1" },
+    { "key": "contact_id", "value": "1" },
+    { "key": "newsletter_subscriber_id", "value": "1" },
+    { "key": "featured_section_id", "value": "1" },
+    { "key": "media_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Token returned', function () {",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.token).to.be.a('string');",
+                  "});",
+                  "pm.environment.set('auth_token', json.data.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Me status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": "{{base_url}}/api/auth/me"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{admin_password}}\",\n  \"password\": \"NewLocalPassword123!\",\n  \"password_confirmation\": \"NewLocalPassword123!\"\n}"
+            },
+            "url": "{{base_url}}/api/auth/change-password"
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": "{{base_url}}/api/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        { "name": "Articles List", "request": { "method": "GET", "url": "{{base_url}}/api/public/articles" } },
+        { "name": "Article Detail", "request": { "method": "GET", "url": "{{base_url}}/api/public/articles/{{article_slug}}" } },
+        { "name": "Categories", "request": { "method": "GET", "url": "{{base_url}}/api/public/categories" } },
+        { "name": "Videos", "request": { "method": "GET", "url": "{{base_url}}/api/public/videos" } },
+        { "name": "Video Detail", "request": { "method": "GET", "url": "{{base_url}}/api/public/videos/{{video_slug}}" } },
+        { "name": "Breaking News", "request": { "method": "GET", "url": "{{base_url}}/api/public/breaking-news" } },
+        { "name": "Settings", "request": { "method": "GET", "url": "{{base_url}}/api/public/settings" } },
+        { "name": "Featured Sections", "request": { "method": "GET", "url": "{{base_url}}/api/public/featured" } },
+        {
+          "name": "Contact Submit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Junior Bk\",\n  \"email\": \"junior@example.com\",\n  \"phone\": \"+243000000000\",\n  \"subject\": \"Demande de contact\",\n  \"message\": \"Bonjour, je souhaite collaborer avec Mboka Media sur le frontend Next.js.\"\n}"
+            },
+            "url": "{{base_url}}/api/public/contact"
+          }
+        },
+        {
+          "name": "Newsletter Subscribe",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newsletter@example.com\"\n}"
+            },
+            "url": "{{base_url}}/api/public/newsletter/subscribe"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Articles",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Articles", "request": { "method": "GET", "url": "{{base_url}}/api/admin/articles" } },
+        {
+          "name": "Create Article",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Election en RDC : nouvelle dynamique politique\",\n  \"excerpt\": \"Resume editorial pour la homepage.\",\n  \"content\": \"Contenu riche de l'article avec analyse complete.\",\n  \"status\": \"published\",\n  \"category_id\": {{category_id}},\n  \"published_at\": \"2026-04-18T10:00:00Z\",\n  \"is_featured\": true,\n  \"seo_title\": \"Election RDC 2026\",\n  \"seo_description\": \"Analyse et breaking news autour des elections en RDC.\",\n  \"tag_ids\": [{{tag_id}}]\n}"
+            },
+            "url": "{{base_url}}/api/admin/articles"
+          }
+        },
+        { "name": "Show Article", "request": { "method": "GET", "url": "{{base_url}}/api/admin/articles/{{article_id}}" } },
+        {
+          "name": "Update Article",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Election en RDC : edition mise a jour\",\n  \"excerpt\": \"Resume mis a jour.\",\n  \"content\": \"Contenu mis a jour avec angle editoriale.\",\n  \"status\": \"archived\",\n  \"category_id\": {{category_id}},\n  \"is_featured\": false,\n  \"tag_ids\": [{{tag_id}}]\n}"
+            },
+            "url": "{{base_url}}/api/admin/articles/{{article_id}}"
+          }
+        },
+        { "name": "Delete Article", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/articles/{{article_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Categories",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Categories", "request": { "method": "GET", "url": "{{base_url}}/api/admin/categories" } },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Tech\",\n  \"description\": \"Actualites et innovation.\",\n  \"is_active\": true\n}" },
+            "url": "{{base_url}}/api/admin/categories"
+          }
+        },
+        { "name": "Show Category", "request": { "method": "GET", "url": "{{base_url}}/api/admin/categories/{{category_id}}" } },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Tech Updates\",\n  \"description\": \"Innovation, IA et ecosysteme digital.\",\n  \"is_active\": false\n}" },
+            "url": "{{base_url}}/api/admin/categories/{{category_id}}"
+          }
+        },
+        { "name": "Delete Category", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/categories/{{category_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Tags",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Tags", "request": { "method": "GET", "url": "{{base_url}}/api/admin/tags" } },
+        {
+          "name": "Create Tag",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Live\"\n}" },
+            "url": "{{base_url}}/api/admin/tags"
+          }
+        },
+        { "name": "Show Tag", "request": { "method": "GET", "url": "{{base_url}}/api/admin/tags/{{tag_id}}" } },
+        {
+          "name": "Update Tag",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Live Update\"\n}" },
+            "url": "{{base_url}}/api/admin/tags/{{tag_id}}"
+          }
+        },
+        { "name": "Delete Tag", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/tags/{{tag_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Videos",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Videos", "request": { "method": "GET", "url": "{{base_url}}/api/admin/videos" } },
+        {
+          "name": "Create Video",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Reportage Kinshasa Soir\",\n  \"description\": \"Resume video pour le journal du soir.\",\n  \"thumbnail\": \"media/videos/kinshasa-soir.jpg\",\n  \"video_url\": \"https://example.com/videos/kinshasa-soir\",\n  \"source_type\": \"external_url\",\n  \"status\": \"published\",\n  \"is_featured\": true,\n  \"published_at\": \"2026-04-18T12:00:00Z\"\n}"
+            },
+            "url": "{{base_url}}/api/admin/videos"
+          }
+        },
+        { "name": "Show Video", "request": { "method": "GET", "url": "{{base_url}}/api/admin/videos/{{video_id}}" } },
+        {
+          "name": "Update Video",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Reportage Kinshasa Soir - MAJ\",\n  \"description\": \"Version mise a jour de la video.\",\n  \"thumbnail\": \"media/videos/kinshasa-soir-v2.jpg\",\n  \"video_url\": \"https://example.com/videos/kinshasa-soir-v2\",\n  \"source_type\": \"external_url\",\n  \"status\": \"archived\",\n  \"is_featured\": false\n}"
+            },
+            "url": "{{base_url}}/api/admin/videos/{{video_id}}"
+          }
+        },
+        { "name": "Delete Video", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/videos/{{video_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Breaking News",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Breaking News", "request": { "method": "GET", "url": "{{base_url}}/api/admin/breaking-news" } },
+        {
+          "name": "Create Breaking News",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Urgent : sommet regional a Kinshasa\",\n  \"link\": \"https://example.com/urgent/sommet-regional\",\n  \"is_active\": true,\n  \"sort_order\": 1\n}" },
+            "url": "{{base_url}}/api/admin/breaking-news"
+          }
+        },
+        { "name": "Show Breaking News", "request": { "method": "GET", "url": "{{base_url}}/api/admin/breaking-news/{{breaking_news_id}}" } },
+        {
+          "name": "Update Breaking News",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Urgent : sommet regional confirme\",\n  \"link\": \"https://example.com/urgent/sommet-regional-maj\",\n  \"is_active\": false,\n  \"sort_order\": 2\n}" },
+            "url": "{{base_url}}/api/admin/breaking-news/{{breaking_news_id}}"
+          }
+        },
+        { "name": "Delete Breaking News", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/breaking-news/{{breaking_news_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Media",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Media", "request": { "method": "GET", "url": "{{base_url}}/api/admin/media" } },
+        {
+          "name": "Upload Media",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "name", "type": "text", "value": "hero-homepage" },
+                { "key": "alt_text", "type": "text", "value": "Image de couverture homepage" }
+              ]
+            },
+            "url": "{{base_url}}/api/admin/media"
+          }
+        },
+        { "name": "Delete Media", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/media/{{media_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Users",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Users", "request": { "method": "GET", "url": "{{base_url}}/api/admin/users" } },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Redaction Mboka\",\n  \"email\": \"redaction@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+243111111111\",\n  \"job_title\": \"Journaliste\",\n  \"bio\": \"Profil de test pour la redaction.\",\n  \"is_active\": true,\n  \"roles\": [\"Community Manager\"]\n}"
+            },
+            "url": "{{base_url}}/api/admin/users"
+          }
+        },
+        { "name": "Show User", "request": { "method": "GET", "url": "{{base_url}}/api/admin/users/{{user_id}}" } },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Redaction Mboka Updated\",\n  \"phone\": \"+243222222222\",\n  \"is_active\": false,\n  \"roles\": [\"Community Manager\"]\n}"
+            },
+            "url": "{{base_url}}/api/admin/users/{{user_id}}"
+          }
+        },
+        { "name": "Delete User", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/users/{{user_id}}" } }
+      ]
+    },
+    {
+      "name": "Admin Settings",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "Show Settings", "request": { "method": "GET", "url": "{{base_url}}/api/admin/settings" } },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_name\": \"Mboka Media\",\n  \"site_slogan\": \"Le media digital de reference\",\n  \"primary_email\": \"contact@mbokamedia.com\",\n  \"primary_phone\": \"+243000000000\",\n  \"logo\": \"media/branding/logo.png\",\n  \"favicon\": \"media/branding/favicon.png\",\n  \"social_links\": {\n    \"facebook\": \"https://facebook.com/mbokamedia\",\n    \"twitter\": \"https://x.com/mbokamedia\",\n    \"youtube\": \"https://youtube.com/@mbokamedia\"\n  },\n  \"seo_title\": \"Mboka Media\",\n  \"seo_description\": \"Actualites, videos et breaking news en continu.\",\n  \"seo_keywords\": \"mboka media, rdc, actualites\"\n}"
+            },
+            "url": "{{base_url}}/api/admin/settings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Contacts",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Contacts", "request": { "method": "GET", "url": "{{base_url}}/api/admin/contacts" } },
+        { "name": "Show Contact", "request": { "method": "GET", "url": "{{base_url}}/api/admin/contacts/{{contact_id}}" } },
+        {
+          "name": "Mark Contact as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"read\"\n}" },
+            "url": "{{base_url}}/api/admin/contacts/{{contact_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Newsletter",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Subscribers", "request": { "method": "GET", "url": "{{base_url}}/api/admin/newsletter-subscribers" } },
+        {
+          "name": "Update Subscriber Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"unsubscribed\"\n}" },
+            "url": "{{base_url}}/api/admin/newsletter-subscribers/{{newsletter_subscriber_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Featured Sections",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        { "name": "List Featured Sections", "request": { "method": "GET", "url": "{{base_url}}/api/admin/featured-sections" } },
+        {
+          "name": "Create Featured Section",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Homepage Sidebar\",\n  \"headline\": \"A lire aussi\",\n  \"description\": \"Selection editoriale complementaire.\",\n  \"is_active\": true,\n  \"sort_order\": 2,\n  \"max_items\": 3,\n  \"items\": [\n    {\n      \"featureable_type\": \"article\",\n      \"featureable_id\": {{article_id}},\n      \"sort_order\": 1,\n      \"is_active\": true\n    },\n    {\n      \"featureable_type\": \"video\",\n      \"featureable_id\": {{video_id}},\n      \"sort_order\": 2,\n      \"is_active\": true\n    }\n  ]\n}"
+            },
+            "url": "{{base_url}}/api/admin/featured-sections"
+          }
+        },
+        { "name": "Show Featured Section", "request": { "method": "GET", "url": "{{base_url}}/api/admin/featured-sections/{{featured_section_id}}" } },
+        {
+          "name": "Update Featured Section",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"headline\": \"Selection mise a jour\",\n  \"description\": \"Nouvelle organisation editoriale.\",\n  \"is_active\": false,\n  \"sort_order\": 3,\n  \"max_items\": 4\n}"
+            },
+            "url": "{{base_url}}/api/admin/featured-sections/{{featured_section_id}}"
+          }
+        },
+        { "name": "Delete Featured Section", "request": { "method": "DELETE", "url": "{{base_url}}/api/admin/featured-sections/{{featured_section_id}}" } }
+      ]
+    },
+    {
+      "name": "Dashboard Stats",
+      "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{auth_token}}", "type": "string" }] },
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stats status is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Stats payload contains counters', function () {",
+                  "    pm.expect(json.data).to.have.property('articles_total');",
+                  "    pm.expect(json.data).to.have.property('videos_total');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/admin/dashboard/stats"
+          }
+        }
+      ]
+    }
+  ]
+}
