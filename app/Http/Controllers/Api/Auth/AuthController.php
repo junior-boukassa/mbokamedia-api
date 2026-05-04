@@ -13,8 +13,10 @@ use App\Services\AdminAuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Throwable;
 
 class AuthController extends ApiController
 {
@@ -65,7 +67,9 @@ class AuthController extends ApiController
             return $this->error('This account is not authorized to access the admin panel.', 403);
         }
 
-        $this->issueOtpChallenge($user);
+        if (! $this->issueOtpChallenge($user)) {
+            return $this->error('Impossible d’envoyer le code OTP pour le moment. Merci de reessayer dans un instant.', 503);
+        }
 
         $this->adminAuditLogger->log(
             'auth.otp_challenge_sent',
@@ -159,7 +163,7 @@ class AuthController extends ApiController
                 targetType: 'auth',
             );
 
-            return $this->error('This OTP code has expired. Please request a new code.', 422);
+            return $this->error('Code OTP invalide ou expiré. Veuillez vérifier le code reçu par email.', 422);
         }
 
         if (! Hash::check((string) $validated['code'], $user->otp_code_hash)) {
@@ -177,7 +181,7 @@ class AuthController extends ApiController
                 ],
             );
 
-            return $this->error('Invalid OTP code.', 422);
+            return $this->error('Code OTP invalide ou expiré. Veuillez vérifier le code reçu par email.', 422);
         }
 
         $requestKey = $this->resolveRateLimitKey($request);
@@ -239,7 +243,9 @@ class AuthController extends ApiController
             return $this->error('OTP challenge cannot be resent for this account.', 404);
         }
 
-        $this->issueOtpChallenge($user);
+        if (! $this->issueOtpChallenge($user)) {
+            return $this->error('Impossible d’envoyer un nouveau code OTP pour le moment. Merci de reessayer dans un instant.', 503);
+        }
 
         $this->adminAuditLogger->log(
             'auth.otp_resent',
@@ -281,7 +287,7 @@ class AuthController extends ApiController
         );
     }
 
-    protected function issueOtpChallenge(User $user): void
+    protected function issueOtpChallenge(User $user): bool
     {
         $code = (string) random_int(100000, 999999);
 
@@ -291,7 +297,26 @@ class AuthController extends ApiController
             'otp_attempts' => 0,
         ])->save();
 
-        $user->notify(new AdminOtpNotification($code));
+        try {
+            $user->notify(new AdminOtpNotification($code));
+        } catch (Throwable $exception) {
+            Log::error('otp.email_send_failed', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+
+        Log::info('otp.email_sent', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'mailer' => config('mail.default'),
+            'expires_at' => $user->otp_expires_at?->toIso8601String(),
+        ]);
+
+        return true;
     }
 
     protected function maskEmail(string $email): string

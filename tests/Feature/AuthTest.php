@@ -213,7 +213,7 @@ class AuthTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'This OTP code has expired. Please request a new code.');
+            ->assertJsonPath('message', 'Code OTP invalide ou expiré. Veuillez vérifier le code reçu par email.');
     }
 
     public function test_wrong_otp_increments_attempts_and_is_rejected(): void
@@ -236,7 +236,7 @@ class AuthTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'Invalid OTP code.');
+            ->assertJsonPath('message', 'Code OTP invalide ou expiré. Veuillez vérifier le code reçu par email.');
         $this->assertSame(1, $user->fresh()->otp_attempts);
     }
 }
