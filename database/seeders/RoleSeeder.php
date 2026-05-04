@@ -53,10 +53,11 @@ class RoleSeeder extends Seeder
                 'view dashboard',
                 'view breaking news',
                 'manage breaking news',
-                'manage contacts',
-                'manage newsletter',
-                'manage featured sections',
-                'manage media',
+            'manage contacts',
+            'manage advertising requests',
+            'manage newsletter',
+            'manage featured sections',
+            'manage media',
             ],
         ];
 

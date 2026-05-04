@@ -28,6 +28,8 @@ class UserResource extends JsonResource
             'is_active' => $this->is_active,
             'roles' => $this->whenLoaded('roles', fn () => AdminRoles::normalizeMany($this->getRoleNames())->values()),
             'permissions' => $this->when($shouldExposePermissions, fn () => $this->getAllPermissions()->pluck('name')->values()),
+            'must_change_password' => $this->must_change_password,
+            'temporary_password_set_at' => $this->temporary_password_set_at,
             'last_login_at' => $this->last_login_at,
             'created_at' => $this->created_at,
         ];

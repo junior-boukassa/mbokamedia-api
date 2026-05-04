@@ -27,6 +27,7 @@ class Article extends Model
         'author_id',
         'published_at',
         'is_featured',
+        'is_sponsored',
         'seo_title',
         'seo_description',
         'views_count',
@@ -38,6 +39,7 @@ class Article extends Model
             'status' => ContentStatus::class,
             'published_at' => 'datetime',
             'is_featured' => 'boolean',
+            'is_sponsored' => 'boolean',
             'views_count' => 'integer',
         ];
     }

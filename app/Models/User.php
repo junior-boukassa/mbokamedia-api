@@ -24,6 +24,11 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
+        'otp_code_hash',
+        'otp_expires_at',
+        'otp_attempts',
+        'must_change_password',
+        'temporary_password_set_at',
         'phone',
         'avatar_path',
         'job_title',
@@ -34,6 +39,7 @@ class User extends Authenticatable implements JWTSubject
 
     protected $hidden = [
         'password',
+        'otp_code_hash',
         'remember_token',
     ];
 
@@ -42,6 +48,10 @@ class User extends Authenticatable implements JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'otp_expires_at' => 'datetime',
+            'otp_attempts' => 'integer',
+            'must_change_password' => 'boolean',
+            'temporary_password_set_at' => 'datetime',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
         ];
@@ -79,6 +89,15 @@ class User extends Authenticatable implements JWTSubject
         return AdminRoles::normalizeMany($this->getRoleNames())
             ->intersect(config('admin.elevated_roles', []))
             ->isNotEmpty();
+    }
+
+    public function clearOtpChallenge(): void
+    {
+        $this->forceFill([
+            'otp_code_hash' => null,
+            'otp_expires_at' => null,
+            'otp_attempts' => 0,
+        ])->save();
     }
 
     public function getJWTIdentifier(): mixed

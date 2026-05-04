@@ -14,7 +14,7 @@ class ChangePasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string'],
+            'current_password' => [$this->user()?->must_change_password ? 'nullable' : 'required', 'string'],
             'password' => ['required', 'string', 'confirmed', 'min:8'],
         ];
     }

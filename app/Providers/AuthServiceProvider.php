@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\AdminAuditLog;
+use App\Models\AdvertisingRequest;
 use App\Models\Article;
 use App\Models\BreakingNews;
 use App\Models\Category;
@@ -14,6 +15,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Models\Video;
 use App\Policies\AdminAuditLogPolicy;
+use App\Policies\AdvertisingRequestPolicy;
 use App\Policies\ArticlePolicy;
 use App\Policies\BreakingNewsPolicy;
 use App\Policies\CategoryPolicy;
@@ -31,6 +33,7 @@ class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
         AdminAuditLog::class => AdminAuditLogPolicy::class,
+        AdvertisingRequest::class => AdvertisingRequestPolicy::class,
         Article::class => ArticlePolicy::class,
         BreakingNews::class => BreakingNewsPolicy::class,
         Category::class => CategoryPolicy::class,

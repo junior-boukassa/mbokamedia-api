@@ -18,6 +18,7 @@ class ArticleResource extends JsonResource
             'featured_image' => $this->featured_image,
             'status' => $this->status?->value,
             'is_featured' => $this->is_featured,
+            'is_sponsored' => $this->is_sponsored,
             'seo_title' => $this->seo_title,
             'seo_description' => $this->seo_description,
             'published_at' => $this->published_at,

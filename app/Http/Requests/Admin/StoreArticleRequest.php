@@ -25,6 +25,7 @@ class StoreArticleRequest extends FormRequest
             'author_id' => ['nullable', 'exists:users,id'],
             'published_at' => ['nullable', 'date'],
             'is_featured' => ['sometimes', 'boolean'],
+            'is_sponsored' => ['sometimes', 'boolean'],
             'seo_title' => ['nullable', 'string', 'max:255'],
             'seo_description' => ['nullable', 'string'],
             'tag_ids' => ['nullable', 'array'],

@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Notifications\NewAdminWelcomeNotification;
 use App\Services\AdminAuditLogger;
 use App\Services\UserAccessManager;
 use App\Support\AdminRoles;
@@ -56,8 +57,22 @@ class UserController extends ApiController
         $roles = $request->input('roles', []);
         $this->ensureAssignableRoles($request->user(), $roles);
 
-        $user = User::query()->create($request->safe()->except('roles'));
+        $safe = $request->safe()->except('roles');
+        $temporaryPassword = (string) ($safe['password'] ?? '');
+
+        $user = User::query()->create([
+            ...$safe,
+            'must_change_password' => true,
+            'temporary_password_set_at' => now(),
+        ]);
         $user->syncRoles($roles);
+        $user->notify(
+            new NewAdminWelcomeNotification(
+                rtrim((string) env('ADMIN_PANEL_URL', env('APP_URL', 'http://localhost')), '/').'/login',
+                $user->email,
+                $temporaryPassword,
+            ),
+        );
 
         $this->adminAuditLogger->log(
             'user.created',
@@ -67,6 +82,7 @@ class UserController extends ApiController
             metadata: [
                 'roles' => AdminRoles::normalizeMany($roles)->all(),
                 'is_active' => $user->is_active,
+                'must_change_password' => $user->must_change_password,
             ],
         );
 

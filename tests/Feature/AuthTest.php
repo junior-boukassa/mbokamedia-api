@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -21,9 +22,10 @@ class AuthTest extends TestCase
         return env('DEFAULT_ADMIN_PASSWORD', 'ChangeMe123!');
     }
 
-    public function test_admin_can_login_and_receive_token(): void
+    public function test_admin_login_starts_otp_challenge(): void
     {
         $this->seed();
+        Notification::fake();
 
         $response = $this->postJson('/api/auth/login', [
             'email' => $this->defaultAdminEmail(),
@@ -35,19 +37,21 @@ class AuthTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'message',
-                'data' => ['token', 'token_type', 'user'],
-            ]);
+                'data' => ['otp_required', 'email', 'masked_email', 'expires_in_minutes'],
+            ])
+            ->assertJsonPath('data.otp_required', true);
 
         $this->assertDatabaseHas('admin_audit_logs', [
-            'action' => 'auth.login_succeeded',
+            'action' => 'auth.otp_challenge_sent',
             'actor_email' => $this->defaultAdminEmail(),
             'status' => 'success',
         ]);
     }
 
-    public function test_all_allowed_admin_roles_can_login(): void
+    public function test_all_allowed_admin_roles_can_start_otp_login(): void
     {
         $this->seed();
+        Notification::fake();
 
         foreach (config('admin.allowed_roles') as $roleName) {
             $user = User::factory()->create([
@@ -64,7 +68,7 @@ class AuthTest extends TestCase
             ]);
 
             $response->assertOk()
-                ->assertJsonPath('data.user.roles.0', $roleName);
+                ->assertJsonPath('data.otp_required', true);
         }
     }
 
@@ -82,6 +86,8 @@ class AuthTest extends TestCase
 
     public function test_active_user_without_admin_role_cannot_login_to_admin(): void
     {
+        Notification::fake();
+
         $user = User::factory()->create([
             'email' => 'reader@example.com',
             'password' => 'password123',
@@ -106,6 +112,8 @@ class AuthTest extends TestCase
 
     public function test_login_is_rate_limited_after_too_many_attempts(): void
     {
+        Notification::fake();
+
         foreach (range(1, 5) as $attempt) {
             $response = $this->postJson('/api/auth/login', [
                 'email' => $this->defaultAdminEmail(),
@@ -157,5 +165,78 @@ class AuthTest extends TestCase
             'actor_id' => $user->id,
             'status' => 'success',
         ]);
+    }
+
+    public function test_admin_can_verify_valid_otp_and_receive_token(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create([
+            'email' => 'otp-valid@example.com',
+            'password' => 'password123',
+            'is_active' => true,
+            'otp_code_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->addMinutes(10),
+            'otp_attempts' => 0,
+        ]);
+        $user->assignRole('admin');
+
+        $response = $this->postJson('/api/auth/verify-otp', [
+            'email' => $user->email,
+            'code' => '123456',
+            'device_name' => 'phpunit',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => ['token', 'token_type', 'user'],
+            ]);
+    }
+
+    public function test_expired_otp_is_rejected(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create([
+            'email' => 'otp-expired@example.com',
+            'password' => 'password123',
+            'is_active' => true,
+            'otp_code_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->subMinute(),
+            'otp_attempts' => 0,
+        ]);
+        $user->assignRole('admin');
+
+        $response = $this->postJson('/api/auth/verify-otp', [
+            'email' => $user->email,
+            'code' => '123456',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'This OTP code has expired. Please request a new code.');
+    }
+
+    public function test_wrong_otp_increments_attempts_and_is_rejected(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create([
+            'email' => 'otp-wrong@example.com',
+            'password' => 'password123',
+            'is_active' => true,
+            'otp_code_hash' => Hash::make('123456'),
+            'otp_expires_at' => now()->addMinutes(10),
+            'otp_attempts' => 0,
+        ]);
+        $user->assignRole('admin');
+
+        $response = $this->postJson('/api/auth/verify-otp', [
+            'email' => $user->email,
+            'code' => '654321',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid OTP code.');
+        $this->assertSame(1, $user->fresh()->otp_attempts);
     }
 }

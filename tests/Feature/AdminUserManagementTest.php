@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -14,6 +15,7 @@ class AdminUserManagementTest extends TestCase
     public function test_admin_can_create_and_update_user_roles(): void
     {
         $this->seed();
+        Notification::fake();
 
         $admin = User::factory()->create();
         $admin->assignRole('admin');
@@ -28,7 +30,8 @@ class AdminUserManagementTest extends TestCase
         ]);
 
         $createResponse->assertCreated()
-            ->assertJsonPath('data.email', 'new-user@example.com');
+            ->assertJsonPath('data.email', 'new-user@example.com')
+            ->assertJsonPath('data.must_change_password', true);
 
         $userId = $createResponse->json('data.id');
 
@@ -41,6 +44,42 @@ class AdminUserManagementTest extends TestCase
         $updateResponse->assertOk()
             ->assertJsonPath('data.name', 'New User Updated')
             ->assertJsonPath('data.is_active', false);
+    }
+
+    public function test_temporary_password_requires_change_after_first_otp_login(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create([
+            'email' => 'temp-admin@example.com',
+            'password' => 'password123',
+            'must_change_password' => true,
+            'otp_code_hash' => bcrypt('123456'),
+            'otp_expires_at' => now()->addMinutes(10),
+            'otp_attempts' => 0,
+        ]);
+        $user->assignRole('admin');
+
+        $response = $this->postJson('/api/auth/verify-otp', [
+            'email' => $user->email,
+            'code' => '123456',
+            'device_name' => 'phpunit',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.user.must_change_password', true);
+
+        $token = $response->json('data.token');
+
+        $passwordResponse = $this
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/auth/change-password', [
+                'password' => 'NewSecurePass123!',
+                'password_confirmation' => 'NewSecurePass123!',
+            ]);
+
+        $passwordResponse->assertOk();
+        $this->assertFalse($user->fresh()->must_change_password);
     }
 
     public function test_admin_cannot_assign_super_admin_role(): void

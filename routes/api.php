@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Admin\ArticleController as AdminArticleController;
 use App\Http\Controllers\Api\Admin\AdminAuditLogController;
+use App\Http\Controllers\Api\Admin\AdvertisingRequestController as AdminAdvertisingRequestController;
 use App\Http\Controllers\Api\Admin\BreakingNewsController as AdminBreakingNewsController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\Admin\VideoController as AdminVideoController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\CurrentUserController;
 use App\Http\Controllers\Api\Public\ArticleController as PublicArticleController;
+use App\Http\Controllers\Api\Public\AdvertisingRequestController as PublicAdvertisingRequestController;
 use App\Http\Controllers\Api\Public\BreakingNewsController as PublicBreakingNewsController;
 use App\Http\Controllers\Api\Public\CategoryController as PublicCategoryController;
 use App\Http\Controllers\Api\Public\ContactController as PublicContactController;
@@ -56,6 +58,8 @@ Route::prefix('v1')->group(function (): void {
 
 Route::prefix('auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:admin-login');
+    Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:api');
+    Route::post('resend-otp', [AuthController::class, 'resendOtp'])->middleware('throttle:api');
 
     Route::middleware(['auth:sanctum', 'admin.panel'])->group(function (): void {
         Route::get('me', CurrentUserController::class);
@@ -64,6 +68,8 @@ Route::prefix('auth')->group(function (): void {
 
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 });
+
+Route::post('advertising-requests', [PublicAdvertisingRequestController::class, 'store']);
 
 Route::prefix('public')->group(function (): void {
     Route::get('articles', [PublicArticleController::class, 'index']);
@@ -98,6 +104,9 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->prefix('admin')->group(funct
     Route::get('contacts', [AdminContactController::class, 'index']);
     Route::get('contacts/{contact}', [AdminContactController::class, 'show']);
     Route::patch('contacts/{contact}', [AdminContactController::class, 'update']);
+    Route::get('advertising-requests', [AdminAdvertisingRequestController::class, 'index']);
+    Route::get('advertising-requests/{advertisingRequest}', [AdminAdvertisingRequestController::class, 'show']);
+    Route::patch('advertising-requests/{advertisingRequest}/status', [AdminAdvertisingRequestController::class, 'updateStatus']);
 
     Route::get('newsletter-subscribers', [AdminNewsletterSubscriberController::class, 'index']);
     Route::patch('newsletter-subscribers/{newsletterSubscriber}', [AdminNewsletterSubscriberController::class, 'update']);

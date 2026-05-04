@@ -35,6 +35,7 @@ class PermissionSeeder extends Seeder
             'manage breaking news',
             'manage media',
             'manage contacts',
+            'manage advertising requests',
             'manage newsletter',
             'manage settings',
             'manage featured sections',
