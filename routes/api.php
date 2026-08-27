@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\Public\AdvertisingRequestController as PublicAdvert
 use App\Http\Controllers\Api\Public\BreakingNewsController as PublicBreakingNewsController;
 use App\Http\Controllers\Api\Public\CategoryController as PublicCategoryController;
 use App\Http\Controllers\Api\Public\ContactController as PublicContactController;
+use App\Http\Controllers\Api\Public\DeviceController as PublicDeviceController;
 use App\Http\Controllers\Api\Public\FeaturedSectionController as PublicFeaturedSectionController;
 use App\Http\Controllers\Api\Public\NewsletterController as PublicNewsletterController;
 use App\Http\Controllers\Api\Public\NotificationController as PublicNotificationController;
@@ -83,6 +84,7 @@ Route::prefix('public')->group(function (): void {
     Route::get('notifications', [PublicNotificationController::class, 'index']);
     Route::post('newsletter/subscribe', [PublicNewsletterController::class, 'store']);
     Route::post('contact', [PublicContactController::class, 'store']);
+    Route::post('devices', [PublicDeviceController::class, 'store']);
 });
 
 Route::middleware(['auth:sanctum', 'admin.panel'])->prefix('admin')->group(function (): void {

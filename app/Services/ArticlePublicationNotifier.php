@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ContentStatus;
+use App\Jobs\SendArticlePushNotification;
 use App\Models\Article;
 use App\Models\ArticleNotification;
 use App\Models\NewsletterSubscriber;
@@ -34,6 +35,7 @@ class ArticlePublicationNotifier
         }
 
         $this->sendSubscriberEmails($notification);
+        $this->sendPushNotification($notification);
 
         return $notification;
     }
@@ -46,6 +48,22 @@ class ArticlePublicationNotifier
             && $article->published_at !== null
             && $article->published_at->isPast()
             && $previousStatus !== ContentStatus::Published->value;
+    }
+
+    /**
+     * Notification push aux lecteurs de l'application mobile.
+     *
+     * Mise en file : l'appel à FCM ne doit pas retarder la réponse au
+     * journaliste qui vient de publier. L'échec d'un envoi n'annule pas la
+     * publication — le job réessaie, puis journalise.
+     */
+    protected function sendPushNotification(ArticleNotification $notification): void
+    {
+        try {
+            SendArticlePushNotification::dispatch($notification);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 
     protected function sendSubscriberEmails(ArticleNotification $notification): void

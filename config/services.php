@@ -28,6 +28,19 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+     * Notifications push de l'application mobile (FCM HTTP v1).
+     * `FIREBASE_CREDENTIALS` pointe vers la clé du compte de service, qui doit
+     * rester **hors du dépôt** : Console Firebase → Paramètres du projet →
+     * Comptes de service → « Générer une nouvelle clé privée ».
+     */
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+        'broadcast_topic' => env('FIREBASE_BROADCAST_TOPIC', 'all-users'),
+        'android_channel' => env('FIREBASE_ANDROID_CHANNEL', 'mboka_articles'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

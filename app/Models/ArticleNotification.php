@@ -18,6 +18,7 @@ class ArticleNotification extends Model
         'featured_image',
         'published_at',
         'email_sent_at',
+        'push_sent_at',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class ArticleNotification extends Model
         return [
             'published_at' => 'datetime',
             'email_sent_at' => 'datetime',
+            'push_sent_at' => 'datetime',
         ];
     }
 
