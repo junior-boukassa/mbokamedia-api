@@ -22,9 +22,14 @@ Le déclencheur existait déjà pour les e-mails : le push s'y greffe. Les deux
 colonnes sont distinctes, pour qu'un envoi d'e-mails en échec n'empêche pas le
 push, ni l'inverse.
 
-Le job est mis en file : l'appel à Google ne doit pas faire attendre le
-journaliste qui vient de cliquer sur « Publier ». **Un worker doit tourner** en
-production (`php artisan queue:work`), sinon rien ne part.
+L'envoi est **synchrone par défaut** (`FIREBASE_QUEUE_CONNECTION=sync`), comme
+les e-mails juste au-dessus : l'hébergement est mutualisé et n'y fait tourner
+aucun worker, si bien qu'un job mis en file n'en sortirait jamais. La
+publication prend une fraction de seconde de plus — le jeton OAuth est mis en
+cache cinquante minutes, il ne reste qu'un appel à FCM.
+
+Le jour où un `php artisan queue:work` tourne réellement, passez la variable à
+`database` : le job est déjà écrit pour ça, avec trois tentatives.
 
 ## Configuration
 
@@ -33,6 +38,7 @@ FIREBASE_PROJECT_ID=mboka-media-7e778
 FIREBASE_CREDENTIALS=/etc/mbokamedia/firebase-service-account.json
 FIREBASE_BROADCAST_TOPIC=all-users
 FIREBASE_ANDROID_CHANNEL=mboka_articles
+FIREBASE_QUEUE_CONNECTION=sync
 ```
 
 La clé de compte de service se génère dans la console Firebase → Paramètres du
@@ -116,3 +122,28 @@ php artisan tinker
   s'abonnaient à aucun topic.
 - Les topics par rubrique (`category-<slug>`) sont prévus côté application mais
   ne sont pas encore utilisés à l'envoi.
+
+## Déployer
+
+Sur l'hébergement mutualisé Hostinger :
+
+```bash
+git pull origin main
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+php artisan optimize:clear && php artisan optimize
+```
+
+Puis déposer la clé de compte de service hors du dossier web et renseigner
+`FIREBASE_CREDENTIALS` dans `.env`.
+
+Pour vérifier que le déploiement a bien pris, sans rien publier :
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  https://api.mbokamedia.com/api/public/devices \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","platform":"android"}'
+```
+
+`201` : la nouvelle version tourne. `404` : l'ancienne est encore en place.

@@ -38,6 +38,10 @@ return [
         'project_id' => env('FIREBASE_PROJECT_ID'),
         'credentials' => env('FIREBASE_CREDENTIALS'),
         'broadcast_topic' => env('FIREBASE_BROADCAST_TOPIC', 'all-users'),
+        // `sync` par défaut : l'hébergement mutualisé ne fait pas tourner de
+        // worker, et un job mis en file n'en sortirait jamais. Basculer sur
+        // `database` le jour où un `queue:work` tourne pour de bon.
+        'queue_connection' => env('FIREBASE_QUEUE_CONNECTION', 'sync'),
         'android_channel' => env('FIREBASE_ANDROID_CHANNEL', 'mboka_articles'),
     ],
 

@@ -53,14 +53,18 @@ class ArticlePublicationNotifier
     /**
      * Notification push aux lecteurs de l'application mobile.
      *
-     * Mise en file : l'appel à FCM ne doit pas retarder la réponse au
-     * journaliste qui vient de publier. L'échec d'un envoi n'annule pas la
-     * publication — le job réessaie, puis journalise.
+     * La connexion vient de la configuration et vaut `sync` par défaut :
+     * l'hébergement est mutualisé, aucun worker n'y tourne, et un job mis en
+     * file n'en sortirait jamais — la notification ne partirait tout
+     * simplement pas. Les e-mails ci-dessus suivent déjà ce modèle.
+     *
+     * L'échec d'un envoi n'annule jamais la publication : il est journalisé.
      */
     protected function sendPushNotification(ArticleNotification $notification): void
     {
         try {
-            SendArticlePushNotification::dispatch($notification);
+            SendArticlePushNotification::dispatch($notification)
+                ->onConnection(config('services.firebase.queue_connection', 'sync'));
         } catch (Throwable $exception) {
             report($exception);
         }

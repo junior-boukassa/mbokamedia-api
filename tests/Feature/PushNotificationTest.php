@@ -83,7 +83,12 @@ class PushNotificationTest extends TestCase
             'published_at' => now()->toISOString(),
         ])->assertCreated();
 
-        Bus::assertDispatched(SendArticlePushNotification::class);
+        // Sans worker sur l'hébergement mutualisé, un job en file ne partirait
+        // jamais : la connexion doit rester `sync` par défaut.
+        Bus::assertDispatched(
+            SendArticlePushNotification::class,
+            fn (SendArticlePushNotification $job): bool => $job->connection === 'sync',
+        );
     }
 
     public function test_draft_article_does_not_queue_a_push(): void
