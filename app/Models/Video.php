@@ -21,9 +21,13 @@ class Video extends Model
         'description',
         'thumbnail',
         'video_url',
+        'youtube_url',
+        'external_url',
         'source_type',
         'status',
         'is_featured',
+        'is_reel',
+        'views_count',
         'published_at',
         'author_id',
     ];
@@ -34,7 +38,9 @@ class Video extends Model
             'source_type' => VideoSourceType::class,
             'status' => ContentStatus::class,
             'is_featured' => 'boolean',
+            'is_reel' => 'boolean',
             'published_at' => 'datetime',
+            'views_count' => 'integer',
         ];
     }
 

@@ -22,11 +22,15 @@ class StoreVideoRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'thumbnail' => ['nullable', 'string', 'max:255'],
             'video_url' => $sourceType === 'upload'
-                ? ['required', 'string', 'max:255']
-                : ['required', 'url', 'max:2048'],
+                ? ['nullable', 'string', 'max:2048']
+                : ['nullable', 'url', 'max:2048'],
+            'youtube_url' => ['nullable', 'url', 'max:2048'],
+            'external_url' => ['nullable', 'url', 'max:2048'],
             'source_type' => ['required', 'in:external_url,embed,upload'],
             'status' => ['required', 'in:draft,scheduled,published,archived'],
             'is_featured' => ['sometimes', 'boolean'],
+            'is_reel' => ['sometimes', 'boolean'],
+            'views_count' => ['sometimes', 'integer', 'min:0'],
             'published_at' => ['nullable', 'date'],
             'author_id' => ['nullable', 'exists:users,id'],
         ];

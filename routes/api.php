@@ -23,8 +23,10 @@ use App\Http\Controllers\Api\Public\CategoryController as PublicCategoryControll
 use App\Http\Controllers\Api\Public\ContactController as PublicContactController;
 use App\Http\Controllers\Api\Public\DeviceController as PublicDeviceController;
 use App\Http\Controllers\Api\Public\FeaturedSectionController as PublicFeaturedSectionController;
+use App\Http\Controllers\Api\Public\LiveController as PublicLiveController;
 use App\Http\Controllers\Api\Public\NewsletterController as PublicNewsletterController;
 use App\Http\Controllers\Api\Public\NotificationController as PublicNotificationController;
+use App\Http\Controllers\Api\Public\ReelController as PublicReelController;
 use App\Http\Controllers\Api\Public\SettingController as PublicSettingController;
 use App\Http\Controllers\Api\Public\VideoController as PublicVideoController;
 use App\Http\Controllers\Api\V1\ArticleController as V1ArticleController;
@@ -72,12 +74,16 @@ Route::prefix('auth')->group(function (): void {
 
 Route::post('advertising-requests', [PublicAdvertisingRequestController::class, 'store']);
 
+Route::get('lives/current', [PublicLiveController::class, 'current']);
+Route::get('lives', [PublicLiveController::class, 'index']);
+
 Route::prefix('public')->group(function (): void {
     Route::get('articles', [PublicArticleController::class, 'index']);
     Route::get('articles/{article:slug}', [PublicArticleController::class, 'show']);
     Route::get('categories', [PublicCategoryController::class, 'index']);
     Route::get('videos', [PublicVideoController::class, 'index']);
     Route::get('videos/{video:slug}', [PublicVideoController::class, 'show']);
+    Route::get('reels', [PublicReelController::class, 'index']);
     Route::get('breaking-news', [PublicBreakingNewsController::class, 'index']);
     Route::get('settings', [PublicSettingController::class, 'show']);
     Route::get('featured', [PublicFeaturedSectionController::class, 'index']);
@@ -94,6 +100,7 @@ Route::middleware(['auth:sanctum', 'admin.panel'])->prefix('admin')->group(funct
     Route::apiResource('categories', AdminCategoryController::class);
     Route::apiResource('tags', AdminTagController::class);
     Route::apiResource('videos', AdminVideoController::class);
+    Route::apiResource('lives', \App\Http\Controllers\Api\Admin\LiveController::class);
     Route::apiResource('breaking-news', AdminBreakingNewsController::class);
     Route::apiResource('users', AdminUserController::class);
     Route::apiResource('featured-sections', AdminFeaturedSectionController::class);

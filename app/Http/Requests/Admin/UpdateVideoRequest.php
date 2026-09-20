@@ -23,13 +23,17 @@ class UpdateVideoRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'thumbnail' => ['nullable', 'string', 'max:255'],
             'video_url' => $sourceType === 'upload'
-                ? ['sometimes', 'string', 'max:255']
-                : ['sometimes', 'url', 'max:2048'],
+                ? ['sometimes', 'nullable', 'string', 'max:2048']
+                : ['sometimes', 'nullable', 'url', 'max:2048'],
+            'youtube_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
+            'external_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
             'source_type' => ['sometimes', 'in:external_url,embed,upload'],
             'status' => ['sometimes', 'in:draft,scheduled,published,archived'],
             'is_featured' => ['sometimes', 'boolean'],
-            'published_at' => ['nullable', 'date'],
-            'author_id' => ['nullable', 'exists:users,id'],
+            'is_reel' => ['sometimes', 'boolean'],
+            'views_count' => ['sometimes', 'integer', 'min:0'],
+            'published_at' => ['sometimes', 'nullable', 'date'],
+            'author_id' => ['sometimes', 'nullable', 'exists:users,id'],
         ];
     }
 }

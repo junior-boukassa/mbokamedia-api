@@ -9,6 +9,7 @@ use App\Models\BreakingNews;
 use App\Models\Category;
 use App\Models\Contact;
 use App\Models\FeaturedSection;
+use App\Models\Live;
 use App\Models\Medium;
 use App\Models\Setting;
 use App\Models\Tag;
@@ -21,6 +22,7 @@ use App\Policies\BreakingNewsPolicy;
 use App\Policies\CategoryPolicy;
 use App\Policies\ContactPolicy;
 use App\Policies\FeaturedSectionPolicy;
+use App\Policies\LivePolicy;
 use App\Policies\MediumPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\TagPolicy;
@@ -39,6 +41,7 @@ class AuthServiceProvider extends ServiceProvider
         Category::class => CategoryPolicy::class,
         Contact::class => ContactPolicy::class,
         FeaturedSection::class => FeaturedSectionPolicy::class,
+        Live::class => LivePolicy::class,
         Medium::class => MediumPolicy::class,
         Setting::class => SettingPolicy::class,
         Tag::class => TagPolicy::class,
