@@ -12,11 +12,25 @@ class AvatarStorage
     public function store(UploadedFile $file): string
     {
         $directory = $this->directory().'/'.now()->format('Y/m');
+        $diskName = $this->disk();
+        $disk = Storage::disk($diskName);
+
+        $this->ensurePublicDirectories($directory, $diskName);
+
         $extension = strtolower($file->extension() ?: $file->getClientOriginalExtension());
-        $path = $file->storeAs($directory, Str::uuid().'.'.$extension, $this->disk());
+        $path = $file->storeAs($directory, Str::uuid().'.'.$extension, [
+            'disk' => $diskName,
+            'visibility' => 'public',
+        ]);
 
         if ($path === false) {
             throw new RuntimeException('Unable to store the user avatar.');
+        }
+
+        if (! $disk->setVisibility($path, 'public')) {
+            $disk->delete($path);
+
+            throw new RuntimeException('Unable to make the user avatar publicly readable.');
         }
 
         return $path;
@@ -49,5 +63,23 @@ class AvatarStorage
     private function directory(): string
     {
         return trim((string) config('api.media.directory', 'media'), '/').'/avatars';
+    }
+
+    private function ensurePublicDirectories(string $directory, string $diskName): void
+    {
+        if (config("filesystems.disks.{$diskName}.driver") !== 'local') {
+            return;
+        }
+
+        $disk = Storage::disk($diskName);
+        $path = '';
+
+        foreach (explode('/', trim($directory, '/')) as $segment) {
+            $path = $path === '' ? $segment : $path.'/'.$segment;
+
+            if (! $disk->makeDirectory($path) || ! $disk->setVisibility($path, 'public')) {
+                throw new RuntimeException('Unable to make the avatar directory publicly accessible.');
+            }
+        }
     }
 }
