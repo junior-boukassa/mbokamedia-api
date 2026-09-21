@@ -4,13 +4,103 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AdminUserManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_admin_can_upload_replace_and_remove_a_user_avatar(): void
+    {
+        $this->seed();
+        Notification::fake();
+        Storage::fake('public');
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+
+        $createResponse = $this->post('/api/admin/users', [
+            'name' => 'Avatar User',
+            'email' => 'avatar-user@example.com',
+            'password' => 'password123',
+            'is_active' => '1',
+            'roles' => ['community_manager'],
+            'avatar' => UploadedFile::fake()->image('avatar.jpg'),
+        ], ['Accept' => 'application/json']);
+
+        $createResponse->assertCreated();
+        $userId = $createResponse->json('data.id');
+        $firstAvatarPath = $createResponse->json('data.avatar_path');
+        Storage::disk('public')->assertExists($firstAvatarPath);
+
+        $replaceResponse = $this->post("/api/admin/users/{$userId}", [
+            '_method' => 'PUT',
+            'avatar' => UploadedFile::fake()->image('replacement.png'),
+        ], ['Accept' => 'application/json']);
+
+        $replaceResponse->assertOk();
+        $replacementAvatarPath = $replaceResponse->json('data.avatar_path');
+        Storage::disk('public')->assertMissing($firstAvatarPath);
+        Storage::disk('public')->assertExists($replacementAvatarPath);
+
+        $removeResponse = $this->post("/api/admin/users/{$userId}", [
+            '_method' => 'PUT',
+            'remove_avatar' => '1',
+        ], ['Accept' => 'application/json']);
+
+        $removeResponse->assertOk()->assertJsonPath('data.avatar_path', null);
+        Storage::disk('public')->assertMissing($replacementAvatarPath);
+    }
+
+    public function test_avatar_validation_rejects_unsupported_files(): void
+    {
+        $this->seed();
+        Notification::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+
+        $response = $this->post('/api/admin/users', [
+            'name' => 'Invalid Avatar User',
+            'email' => 'invalid-avatar@example.com',
+            'password' => 'password123',
+            'is_active' => '1',
+            'roles' => ['community_manager'],
+            'avatar' => UploadedFile::fake()->create('avatar.gif', 10, 'image/gif'),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertUnprocessable()->assertJsonValidationErrors('avatar');
+    }
+
+    public function test_replacing_an_external_or_default_avatar_does_not_delete_unmanaged_storage(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        $managedUser = User::factory()->create([
+            'avatar_path' => '/images/default-avatar.png',
+        ]);
+        $managedUser->assignRole('editor');
+        Storage::disk('public')->put('images/default-avatar.png', 'default');
+        Sanctum::actingAs($admin);
+
+        $response = $this->post("/api/admin/users/{$managedUser->id}", [
+            '_method' => 'PUT',
+            'avatar' => UploadedFile::fake()->image('replacement.webp'),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertOk();
+        Storage::disk('public')->assertExists('images/default-avatar.png');
+        Storage::disk('public')->assertExists($response->json('data.avatar_path'));
+    }
 
     public function test_admin_can_create_and_update_user_roles(): void
     {

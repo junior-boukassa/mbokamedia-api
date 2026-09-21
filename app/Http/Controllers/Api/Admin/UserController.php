@@ -13,6 +13,8 @@ use App\Services\UserAccessManager;
 use App\Support\AdminRoles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends ApiController
@@ -20,8 +22,7 @@ class UserController extends ApiController
     public function __construct(
         protected UserAccessManager $userAccessManager,
         protected AdminAuditLogger $adminAuditLogger,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -57,8 +58,12 @@ class UserController extends ApiController
         $roles = $request->input('roles', []);
         $this->ensureAssignableRoles($request->user(), $roles);
 
-        $safe = $request->safe()->except('roles');
+        $safe = $request->safe()->except(['roles', 'avatar']);
         $temporaryPassword = (string) ($safe['password'] ?? '');
+
+        if ($request->hasFile('avatar')) {
+            $safe['avatar_path'] = $request->file('avatar')->store('avatars', 'public');
+        }
 
         $user = User::query()->create([
             ...$safe,
@@ -102,6 +107,10 @@ class UserController extends ApiController
 
         $before = $this->userAccessManager->captureSnapshot($user);
         $data = $request->validated();
+        $previousAvatarPath = $user->avatar_path;
+        $newAvatarPath = null;
+
+        unset($data['avatar'], $data['remove_avatar']);
 
         if (blank($data['password'] ?? null)) {
             unset($data['password']);
@@ -111,11 +120,30 @@ class UserController extends ApiController
             $this->ensureAssignableRoles($request->user(), $request->input('roles', []), $user);
         }
 
-        if ($request->user()->id === $user->id && array_key_exists('is_active', $data) && $data['is_active'] === false) {
+        if ($request->user()->id === $user->id && array_key_exists('is_active', $data) && ! $request->boolean('is_active')) {
             return $this->error('You cannot deactivate your own account.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $user->update(collect($data)->except('roles')->all());
+        if ($request->hasFile('avatar')) {
+            $newAvatarPath = $request->file('avatar')->store('avatars', 'public');
+            $data['avatar_path'] = $newAvatarPath;
+        } elseif ($request->boolean('remove_avatar')) {
+            $data['avatar_path'] = null;
+        }
+
+        try {
+            $user->update(collect($data)->except('roles')->all());
+        } catch (\Throwable $exception) {
+            if ($newAvatarPath !== null) {
+                Storage::disk('public')->delete($newAvatarPath);
+            }
+
+            throw $exception;
+        }
+
+        if (array_key_exists('avatar_path', $data) && $previousAvatarPath !== $data['avatar_path']) {
+            $this->deleteManagedAvatar($previousAvatarPath);
+        }
 
         if ($request->has('roles')) {
             $user->syncRoles($request->input('roles', []));
@@ -196,5 +224,20 @@ class UserController extends ApiController
         if ($subject?->isSuperAdmin() && ! $actor->isSuperAdmin()) {
             abort(Response::HTTP_FORBIDDEN, 'Only a super admin can manage another super admin account.');
         }
+    }
+
+    protected function deleteManagedAvatar(?string $path): void
+    {
+        if (blank($path) || Str::startsWith($path, ['http://', 'https://'])) {
+            return;
+        }
+
+        $normalizedPath = Str::after($path, '/storage/');
+
+        if (! Str::startsWith($normalizedPath, 'avatars/')) {
+            return;
+        }
+
+        Storage::disk('public')->delete($normalizedPath);
     }
 }

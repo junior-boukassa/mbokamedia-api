@@ -20,7 +20,7 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'phone' => ['nullable', 'string', 'max:30'],
-            'avatar_path' => ['nullable', 'string', 'max:255'],
+            'avatar' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'job_title' => ['nullable', 'string', 'max:255'],
             'bio' => ['nullable', 'string'],
             'is_active' => ['sometimes', 'boolean'],
