@@ -36,6 +36,8 @@ class AdminUserManagementTest extends TestCase
         $createResponse->assertCreated();
         $userId = $createResponse->json('data.id');
         $firstAvatarPath = $createResponse->json('data.avatar_path');
+        $this->assertStringStartsWith('media/avatars/'.now()->format('Y/m').'/', $firstAvatarPath);
+        $this->assertStringEndsWith('/storage/'.$firstAvatarPath, $createResponse->json('data.avatar_url'));
         Storage::disk('public')->assertExists($firstAvatarPath);
 
         $replaceResponse = $this->post("/api/admin/users/{$userId}", [

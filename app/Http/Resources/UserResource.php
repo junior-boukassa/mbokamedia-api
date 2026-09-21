@@ -5,6 +5,8 @@ namespace App\Http\Resources;
 use App\Support\AdminRoles;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class UserResource extends JsonResource
 {
@@ -25,6 +27,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'avatar_path' => $this->avatar_path,
+            'avatar_url' => $this->avatarUrl(),
             'job_title' => $this->job_title,
             'bio' => $this->bio,
             'is_active' => $this->is_active,
@@ -35,5 +38,48 @@ class UserResource extends JsonResource
             'last_login_at' => $this->last_login_at,
             'created_at' => $this->created_at,
         ];
+    }
+
+    private function avatarUrl(): ?string
+    {
+        $path = trim((string) $this->avatar_path);
+
+        if ($path === '') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        $storagePath = match (true) {
+            Str::startsWith($path, '/storage/') => Str::after($path, '/storage/'),
+            Str::startsWith($path, 'storage/') => Str::after($path, 'storage/'),
+            default => ltrim($path, '/'),
+        };
+        $avatarDirectory = trim((string) config('api.media.directory', 'media'), '/').'/avatars/';
+        $diskName = Str::startsWith($storagePath, $avatarDirectory)
+            ? (string) config('api.media.disk', 'public')
+            : 'public';
+        $diskName = $diskName === 'local' ? 'public' : $diskName;
+        $disk = Storage::disk($diskName);
+
+        if (! $disk->exists($storagePath)) {
+            return null;
+        }
+
+        $diskUrl = $disk->url($storagePath);
+
+        if (Str::startsWith($diskUrl, ['http://', 'https://'])) {
+            return $diskUrl;
+        }
+
+        $publicStorageUrl = rtrim((string) config('filesystems.disks.public.url'), '/');
+
+        if (! Str::startsWith($publicStorageUrl, ['http://', 'https://'])) {
+            $publicStorageUrl = rtrim((string) config('app.url'), '/').'/storage';
+        }
+
+        return $publicStorageUrl.'/'.ltrim($storagePath, '/');
     }
 }

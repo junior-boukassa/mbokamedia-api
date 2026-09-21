@@ -9,12 +9,11 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Notifications\NewAdminWelcomeNotification;
 use App\Services\AdminAuditLogger;
+use App\Services\AvatarStorage;
 use App\Services\UserAccessManager;
 use App\Support\AdminRoles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends ApiController
@@ -22,6 +21,7 @@ class UserController extends ApiController
     public function __construct(
         protected UserAccessManager $userAccessManager,
         protected AdminAuditLogger $adminAuditLogger,
+        protected AvatarStorage $avatarStorage,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -62,7 +62,7 @@ class UserController extends ApiController
         $temporaryPassword = (string) ($safe['password'] ?? '');
 
         if ($request->hasFile('avatar')) {
-            $safe['avatar_path'] = $request->file('avatar')->store('avatars', 'public');
+            $safe['avatar_path'] = $this->avatarStorage->store($request->file('avatar'));
         }
 
         $user = User::query()->create([
@@ -125,7 +125,7 @@ class UserController extends ApiController
         }
 
         if ($request->hasFile('avatar')) {
-            $newAvatarPath = $request->file('avatar')->store('avatars', 'public');
+            $newAvatarPath = $this->avatarStorage->store($request->file('avatar'));
             $data['avatar_path'] = $newAvatarPath;
         } elseif ($request->boolean('remove_avatar')) {
             $data['avatar_path'] = null;
@@ -135,14 +135,14 @@ class UserController extends ApiController
             $user->update(collect($data)->except('roles')->all());
         } catch (\Throwable $exception) {
             if ($newAvatarPath !== null) {
-                Storage::disk('public')->delete($newAvatarPath);
+                $this->avatarStorage->delete($newAvatarPath);
             }
 
             throw $exception;
         }
 
         if (array_key_exists('avatar_path', $data) && $previousAvatarPath !== $data['avatar_path']) {
-            $this->deleteManagedAvatar($previousAvatarPath);
+            $this->avatarStorage->delete($previousAvatarPath);
         }
 
         if ($request->has('roles')) {
@@ -224,20 +224,5 @@ class UserController extends ApiController
         if ($subject?->isSuperAdmin() && ! $actor->isSuperAdmin()) {
             abort(Response::HTTP_FORBIDDEN, 'Only a super admin can manage another super admin account.');
         }
-    }
-
-    protected function deleteManagedAvatar(?string $path): void
-    {
-        if (blank($path) || Str::startsWith($path, ['http://', 'https://'])) {
-            return;
-        }
-
-        $normalizedPath = Str::after($path, '/storage/');
-
-        if (! Str::startsWith($normalizedPath, 'avatars/')) {
-            return;
-        }
-
-        Storage::disk('public')->delete($normalizedPath);
     }
 }
