@@ -2,6 +2,7 @@
 
 namespace App\Services\Fcm;
 
+use App\Support\FcmTopics;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -33,8 +34,30 @@ class FcmClient
      */
     public function sendToTopic(string $topic, string $title, string $body, array $data = []): string
     {
+        return $this->sendToTopics([$topic], $title, $body, $data);
+    }
+
+    /**
+     * Envoie un seul message aux appareils abonnés à au moins un des sujets.
+     *
+     * Avec plusieurs sujets, FCM évalue une condition (`'a' in topics || 'b' in
+     * topics`) : un appareil abonné aux deux ne reçoit qu'une notification, ce
+     * que deux envois séparés ne garantiraient pas.
+     *
+     * @param  array<int, string>  $topics
+     * @param  array<string, string>  $data
+     */
+    public function sendToTopics(array $topics, string $title, string $body, array $data = []): string
+    {
+        $topics = array_values(array_unique($topics));
+
+        // Un seul sujet : l'envoi direct, sans condition, comme avant.
+        $target = count($topics) === 1
+            ? ['topic' => $topics[0]]
+            : ['condition' => FcmTopics::condition($topics)];
+
         return $this->send([
-            'topic' => $topic,
+            ...$target,
             'notification' => ['title' => $title, 'body' => $body],
             'data' => $data,
             'android' => [

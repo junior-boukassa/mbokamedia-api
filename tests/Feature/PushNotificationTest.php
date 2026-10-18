@@ -116,13 +116,9 @@ class PushNotificationTest extends TestCase
     public function test_job_sends_the_expected_payload_to_fcm(): void
     {
         $this->configureFirebase();
+        $this->fakeFcm();
 
-        Http::fake([
-            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'jeton-de-test']),
-            'fcm.googleapis.com/*' => Http::response(['name' => 'projects/test/messages/1']),
-        ]);
-
-        $notification = ArticleNotification::factory()->create([
+        $notification = $this->notificationInCategory('politique', [
             'title' => 'Kinshasa relance le transport fluvial',
             'slug' => 'kinshasa-relance-transport-fluvial',
             'excerpt' => 'Quatre embarcadères rouvrent dès lundi.',
@@ -137,7 +133,7 @@ class PushNotificationTest extends TestCase
 
             $message = $request->data()['message'];
 
-            return $message['topic'] === 'all-users'
+            return $message['condition'] === "'all-users' in topics || 'category-politique' in topics"
                 && $message['data']['slug'] === 'kinshasa-relance-transport-fluvial'
                 && $message['data']['click_action'] === 'FLUTTER_NOTIFICATION_CLICK'
                 && $message['android']['notification']['channel_id'] === 'mboka_articles'
@@ -145,6 +141,126 @@ class PushNotificationTest extends TestCase
         });
 
         $this->assertNotNull($notification->fresh()->push_sent_at);
+    }
+
+    // ─── Notifications par rubrique ─────────────────────────────────────────
+
+    public function test_one_message_targets_the_general_topic_and_the_category_topic(): void
+    {
+        $this->configureFirebase();
+        $this->fakeFcm();
+
+        $notification = $this->notificationInCategory('sport');
+
+        (new SendArticlePushNotification($notification))->handle(app(FcmClient::class));
+
+        // Un seul envoi : un lecteur abonné aux deux sujets ne reçoit qu'une
+        // notification, ce que deux envois séparés ne garantiraient pas.
+        $this->assertCount(1, $this->fcmRequests());
+
+        $message = $this->fcmRequests()[0]->data()['message'];
+        $this->assertSame("'all-users' in topics || 'category-sport' in topics", $message['condition']);
+        $this->assertArrayNotHasKey('topic', $message, 'topic et condition s\'excluent');
+    }
+
+    public function test_category_slug_is_sanitized_like_the_app_does(): void
+    {
+        $this->configureFirebase();
+        $this->fakeFcm();
+
+        $notification = $this->notificationInCategory('sport');
+        // Le modèle normalise les slugs ; on force ici une valeur « sale » pour
+        // vérifier le garde-fou, comme le ferait une donnée ancienne.
+        \Illuminate\Support\Facades\DB::table('categories')
+            ->where('id', $notification->article->category_id)
+            ->update(['slug' => 'société & culture']);
+
+        (new SendArticlePushNotification($notification->fresh()))->handle(app(FcmClient::class));
+
+        $message = $this->fcmRequests()[0]->data()['message'];
+        $this->assertSame(
+            "'all-users' in topics || 'category-soci-t----culture' in topics",
+            $message['condition'],
+        );
+    }
+
+    public function test_article_without_a_category_goes_to_the_general_topic_only(): void
+    {
+        $this->configureFirebase();
+        $this->fakeFcm();
+
+        $notification = ArticleNotification::factory()->create();
+        $notification->setRelation('article', null);
+
+        (new SendArticlePushNotification($notification))->handle(app(FcmClient::class));
+
+        $message = $this->fcmRequests()[0]->data()['message'];
+        $this->assertSame('all-users', $message['topic']);
+        $this->assertArrayNotHasKey('condition', $message);
+    }
+
+    public function test_general_topic_name_comes_from_configuration(): void
+    {
+        $this->configureFirebase();
+        config()->set('services.firebase.broadcast_topic', 'tous');
+        $this->fakeFcm();
+
+        (new SendArticlePushNotification($this->notificationInCategory('sport')))
+            ->handle(app(FcmClient::class));
+
+        $this->assertSame(
+            "'tous' in topics || 'category-sport' in topics",
+            $this->fcmRequests()[0]->data()['message']['condition'],
+        );
+    }
+
+    public function test_send_to_topic_still_sends_a_plain_topic(): void
+    {
+        $this->configureFirebase();
+        $this->fakeFcm();
+
+        app(FcmClient::class)->sendToTopic('all-users', 'Titre', 'Corps', ['slug' => 'a']);
+
+        $message = $this->fcmRequests()[0]->data()['message'];
+        $this->assertSame('all-users', $message['topic']);
+        $this->assertArrayNotHasKey('condition', $message);
+    }
+
+    public function test_duplicate_topics_collapse_to_a_plain_topic(): void
+    {
+        $this->configureFirebase();
+        $this->fakeFcm();
+
+        app(FcmClient::class)->sendToTopics(['all-users', 'all-users'], 'Titre', 'Corps');
+
+        $message = $this->fcmRequests()[0]->data()['message'];
+        $this->assertSame('all-users', $message['topic']);
+    }
+
+    public function test_a_published_article_dispatches_the_job_for_its_category(): void
+    {
+        $this->seed();
+        Bus::fake();
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+
+        $category = Category::factory()->create(['name' => 'Sport', 'slug' => 'sport']);
+
+        $this->postJson('/api/admin/articles', [
+            'title' => 'Match de gala à Kinshasa',
+            'excerpt' => 'Un grand match.',
+            'content' => 'Contenu complet de l’article.',
+            'status' => 'published',
+            'published_at' => now()->subMinute()->toISOString(),
+            'category_id' => $category->id,
+        ])->assertCreated();
+
+        Bus::assertDispatched(
+            SendArticlePushNotification::class,
+            fn (SendArticlePushNotification $job): bool => $job->notification->article->category_id === $category->id,
+        );
     }
 
     public function test_job_does_not_send_twice(): void
@@ -174,6 +290,42 @@ class PushNotificationTest extends TestCase
         // Aucune tentative réseau, et la publication n'est pas marquée envoyée.
         Http::assertNothingSent();
         $this->assertNull($notification->fresh()->push_sent_at);
+    }
+
+    protected function fakeFcm(): void
+    {
+        Http::fake([
+            'oauth2.googleapis.com/*' => Http::response(['access_token' => 'jeton-de-test']),
+            'fcm.googleapis.com/*' => Http::response(['name' => 'projects/test/messages/1']),
+        ]);
+    }
+
+    /**
+     * Requêtes réellement envoyées à FCM (hors authentification Google).
+     *
+     * @return array<int, \Illuminate\Http\Client\Request>
+     */
+    protected function fcmRequests(): array
+    {
+        return Http::recorded()
+            ->map(fn (array $pair) => $pair[0])
+            ->filter(fn ($request) => str_contains($request->url(), 'fcm.googleapis.com'))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function notificationInCategory(string $slug, array $attributes = []): ArticleNotification
+    {
+        $category = Category::factory()->create(['slug' => $slug]);
+        $article = \App\Models\Article::factory()->create(['category_id' => $category->id]);
+
+        return ArticleNotification::factory()->create([
+            'article_id' => $article->id,
+            ...$attributes,
+        ]);
     }
 
     /**

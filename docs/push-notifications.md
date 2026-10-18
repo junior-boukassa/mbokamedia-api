@@ -15,7 +15,7 @@ ArticlePublicationNotifier::notifyIfFreshlyPublished()
         └──► SendArticlePushNotification (file)  → push_sent_at
                      │
                      ▼
-             FcmClient  →  topic « all-users »  →  téléphones
+             FcmClient  →  « all-users » ou « category-<slug> »  →  téléphones
 ```
 
 Le déclencheur existait déjà pour les e-mails : le push s'y greffe. Les deux
@@ -60,7 +60,7 @@ l'article. Sans lui, la notification s'affiche mais n'ouvre que l'accueil.
 
 ```jsonc
 {
-  "topic": "all-users",
+  "condition": "'all-users' in topics || 'category-politique' in topics",
   "notification": { "title": "…", "body": "…" },
   "data": {
     "slug": "kinshasa-relance-transport-fluvial",
@@ -120,8 +120,36 @@ php artisan tinker
 - **Seuls les appareils à jour** sont abonnés à `all-users` : l'abonnement se
   fait au lancement de l'application, et les versions antérieures à 1.1.1 ne
   s'abonnaient à aucun topic.
-- Les topics par rubrique (`category-<slug>`) sont prévus côté application mais
-  ne sont pas encore utilisés à l'envoi.
+- **Notifications par rubrique** : voir la section suivante. Le serveur doit
+  être déployé **avant** l'application qui les propose.
+
+## Notifications par rubrique
+
+Le lecteur choisit ses rubriques dans l'application (Réglages → Mes rubriques).
+
+| Le lecteur… | est abonné à |
+| --- | --- |
+| n'a rien choisi (« Tout recevoir ») | `all-users` |
+| a choisi des rubriques | `category-<slug>` pour chacune, **et plus `all-users`** |
+
+`SendArticlePushNotification` vise donc deux sujets : `all-users` et celui de la
+rubrique de l'article. Il les envoie en **un seul message**, avec une condition
+FCM : `'all-users' in topics || 'category-<slug>' in topics`. Un appareil abonné
+aux deux (cas rare, une réconciliation interrompue côté application) ne reçoit
+qu'une notification ; deux envois séparés ne le garantiraient pas.
+
+- Sans rubrique (article orphelin), l'envoi reste un simple `topic: all-users`.
+- Le nom du sujet est produit par `App\Support\FcmTopics::category()`, avec la
+  même règle que l'application (`[a-zA-Z0-9-_.~%]`, le reste devient `-`). Les
+  deux côtés doivent donner exactement la même chaîne, sinon un lecteur est
+  abonné à un sujet que le serveur n'alimente jamais.
+- FCM limite une condition à cinq sujets : `FcmTopics::condition()` refuse au-delà
+  et refuse tout nom qui contiendrait une apostrophe.
+
+**Ordre de mise en production.** Déployer l'API d'abord. Une application qui
+laisse `all-users` pour une rubrique ne reçoit rien d'un serveur qui n'enverrait
+encore qu'à `all-users`. Dans l'autre sens (API déployée, application pas encore),
+rien ne change pour personne : tout le monde est encore sur `all-users`.
 
 ## Déployer
 
