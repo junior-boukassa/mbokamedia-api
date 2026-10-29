@@ -84,6 +84,10 @@ Route::prefix('public')->group(function (): void {
     Route::get('videos', [PublicVideoController::class, 'index']);
     Route::get('videos/{video:slug}', [PublicVideoController::class, 'show']);
     Route::get('reels', [PublicReelController::class, 'index']);
+    Route::get('reels/{slug}', [PublicReelController::class, 'show']);
+    // 30 vues par minute et par adresse IP : assez pour un lecteur qui enchaîne
+    // les reels, trop peu pour gonfler un compteur à la main.
+    Route::post('reels/{slug}/view', [PublicReelController::class, 'view'])->middleware('throttle:30,1');
     Route::get('breaking-news', [PublicBreakingNewsController::class, 'index']);
     Route::get('settings', [PublicSettingController::class, 'show']);
     Route::get('featured', [PublicFeaturedSectionController::class, 'index']);

@@ -28,6 +28,10 @@ class Video extends Model
         'is_featured',
         'is_reel',
         'views_count',
+        'duration_seconds',
+        'width',
+        'height',
+        'notify_on_publish',
         'published_at',
         'author_id',
     ];
@@ -41,6 +45,11 @@ class Video extends Model
             'is_reel' => 'boolean',
             'published_at' => 'datetime',
             'views_count' => 'integer',
+            'duration_seconds' => 'integer',
+            'width' => 'integer',
+            'height' => 'integer',
+            'notify_on_publish' => 'boolean',
+            'push_sent_at' => 'datetime',
         ];
     }
 

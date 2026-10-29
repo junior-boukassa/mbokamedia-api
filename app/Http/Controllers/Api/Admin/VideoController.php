@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\UpdateVideoRequest;
 use App\Http\Resources\VideoResource;
 use App\Models\Video;
 use App\Services\AdminAuditLogger;
+use App\Services\ReelPublicationNotifier;
 use App\Support\MediaPath;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ class VideoController extends ApiController
 {
     public function __construct(
         protected AdminAuditLogger $adminAuditLogger,
+        protected ReelPublicationNotifier $reelPublicationNotifier,
     ) {
     }
 
@@ -29,6 +31,9 @@ class VideoController extends ApiController
             ->with('author')
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('search'), fn ($query) => $query->where('title', 'like', '%'.$request->string('search').'%'))
+            // La page Reels du dashboard envoie `is_reel` : sans ce filtre elle
+            // affichait toutes les vidéos. Sans le paramètre, rien ne change.
+            ->when($request->has('is_reel'), fn ($query) => $query->where('is_reel', $request->boolean('is_reel')))
             ->latest()
             ->paginate((int) $request->integer('per_page', config('api.pagination.per_page')));
 
@@ -50,6 +55,8 @@ class VideoController extends ApiController
                 'author_id' => $video->author_id,
             ],
         );
+
+        $this->reelPublicationNotifier->notifyIfDue($video);
 
         return $this->success(VideoResource::make($video->load('author')), 'Video created successfully.', 201);
     }
@@ -77,6 +84,8 @@ class VideoController extends ApiController
                 'current_status' => $video->fresh()->status?->value,
             ],
         );
+
+        $this->reelPublicationNotifier->notifyIfDue($video->fresh());
 
         return $this->success(VideoResource::make($video->fresh()->load('author')), 'Video updated successfully.');
     }

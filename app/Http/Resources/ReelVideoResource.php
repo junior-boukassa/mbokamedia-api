@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ReelPlayback;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
@@ -22,8 +23,29 @@ class ReelVideoResource extends JsonResource
             'external_url' => $this->resolveMediaUrl($this->external_url),
             'views_count' => (int) ($this->views_count ?? 0),
             'is_featured' => (bool) $this->is_featured,
+            // Ajouts : l'application lit `playback_url` et rien d'autre pour
+            // jouer la vidéo. Les champs ci-dessus restent tels quels : les
+            // versions de l'application déjà installées s'en servent encore.
+            'playback_url' => ReelPlayback::urlFor($this->resource),
+            'duration_seconds' => $this->duration_seconds,
+            'width' => $this->width,
+            'height' => $this->height,
+            'share_url' => $this->shareUrl(),
             'published_at' => $this->published_at?->toISOString(),
         ];
+    }
+
+    /**
+     * Lien web à partager. Le site n'a pas de page par vidéo (`/videos` est une
+     * liste) : on partage cette page. Rien si l'adresse du site n'est pas une
+     * adresse https réelle (valeur de développement dans `.env`) : l'application
+     * retombe alors sur sa propre adresse.
+     */
+    protected function shareUrl(): ?string
+    {
+        $base = rtrim((string) config('api.frontend.url'), '/');
+
+        return str_starts_with($base, 'https://') ? $base.'/videos' : null;
     }
 
     protected function normalizeSourceType(mixed $sourceType): ?string

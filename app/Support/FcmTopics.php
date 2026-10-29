@@ -16,6 +16,9 @@ class FcmTopics
 {
     public const CATEGORY_PREFIX = 'category-';
 
+    /** Sujet des lecteurs qui veulent être prévenus d'un nouveau reel. */
+    public const REELS = 'reels';
+
     /** FCM limite une condition à cinq sujets. */
     public const MAX_IN_CONDITION = 5;
 
