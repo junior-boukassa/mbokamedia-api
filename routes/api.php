@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\Public\LiveController as PublicLiveController;
 use App\Http\Controllers\Api\Public\NewsletterController as PublicNewsletterController;
 use App\Http\Controllers\Api\Public\NotificationController as PublicNotificationController;
 use App\Http\Controllers\Api\Public\ReelController as PublicReelController;
+use App\Http\Controllers\Api\Public\TagController as PublicTagController;
 use App\Http\Controllers\Api\Public\SettingController as PublicSettingController;
 use App\Http\Controllers\Api\Public\VideoController as PublicVideoController;
 use App\Http\Controllers\Api\V1\ArticleController as V1ArticleController;
@@ -81,6 +82,7 @@ Route::prefix('public')->group(function (): void {
     Route::get('articles', [PublicArticleController::class, 'index']);
     Route::get('articles/{article:slug}', [PublicArticleController::class, 'show']);
     Route::get('categories', [PublicCategoryController::class, 'index']);
+    Route::get('tags/trending', [PublicTagController::class, 'trending']);
     Route::get('videos', [PublicVideoController::class, 'index']);
     Route::get('videos/{video:slug}', [PublicVideoController::class, 'show']);
     Route::get('reels', [PublicReelController::class, 'index']);

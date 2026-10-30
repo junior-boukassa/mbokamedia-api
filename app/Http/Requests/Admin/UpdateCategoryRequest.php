@@ -20,6 +20,8 @@ class UpdateCategoryRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255', Rule::unique('categories', 'name')->ignore($categoryId)],
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('categories', 'slug')->ignore($categoryId)],
             'description' => ['nullable', 'string'],
+            'image' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'position' => ['sometimes', 'integer', 'min:0', 'max:9999'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

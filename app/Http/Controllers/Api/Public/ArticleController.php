@@ -19,9 +19,18 @@ class ArticleController extends ApiController
             ->when($request->filled('tag'), fn ($query) => $query->whereHas('tags', fn ($tagQuery) => $tagQuery->where('slug', $request->string('tag'))))
             ->when($request->boolean('featured'), fn ($query) => $query->where('is_featured', true))
             ->when($request->filled('search'), function ($query) use ($request): void {
-                $query->where(function ($subQuery) use ($request): void {
-                    $subQuery->where('title', 'like', '%'.$request->string('search').'%')
-                        ->orWhere('excerpt', 'like', '%'.$request->string('search').'%');
+                $term = '%'.$request->string('search').'%';
+
+                // Titre, chapeau, mais aussi tags et rubrique : « Léopards »
+                // trouve un article taggué #Léopards dont le titre n'emploie pas
+                // le mot. Des sous-requêtes (whereHas) plutôt que des jointures :
+                // un article à plusieurs tags ne ressort jamais en double.
+                // Le corps des articles reste exclu : un LIKE y pèserait trop.
+                $query->where(function ($subQuery) use ($term): void {
+                    $subQuery->where('title', 'like', $term)
+                        ->orWhere('excerpt', 'like', $term)
+                        ->orWhereHas('tags', fn ($tags) => $tags->where('name', 'like', $term)->orWhere('slug', 'like', $term))
+                        ->orWhereHas('category', fn ($category) => $category->where('name', 'like', $term));
                 });
             })
             ->latest('published_at')
