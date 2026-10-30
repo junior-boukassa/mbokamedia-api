@@ -50,7 +50,7 @@ class StoreVideoRequest extends FormRequest
     public function after(): array
     {
         return [
-            fn (Validator $validator) => $this->ensureReelIsMp4(
+            fn (Validator $validator) => $this->ensureReelHasSupportedContainer(
                 $validator,
                 $this->boolean('is_reel'),
                 $this->input('source_type'),

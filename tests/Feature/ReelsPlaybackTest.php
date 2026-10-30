@@ -3,13 +3,20 @@
 namespace Tests\Feature;
 
 use App\Jobs\SendReelPushNotification;
+use App\Models\ReelTranscode;
 use App\Models\User;
 use App\Models\Video;
+use App\Services\Fcm\FcmClient;
 use App\Services\ReelPublicationNotifier;
+use App\Services\ReelTranscoder;
 use App\Support\ReelPlayback;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 class ReelsPlaybackTest extends TestCase
@@ -144,7 +151,7 @@ class ReelsPlaybackTest extends TestCase
         $this->postJson('/api/public/reels/r1/view')->assertStatus(429);
     }
 
-    public function test_reel_upload_must_be_mp4(): void
+    public function test_reel_upload_accepts_mp4_and_mov_but_waits_for_processing(): void
     {
         $this->editor();
 
@@ -158,9 +165,26 @@ class ReelsPlaybackTest extends TestCase
 
         $this->postJson('/api/admin/videos', [...$payload, 'video_url' => 'media/reels/a.webm'])
             ->assertStatus(422)->assertJsonValidationErrors('video_url');
+        $this->postJson('/api/admin/videos', [...$payload, 'video_url' => ''])
+            ->assertStatus(422)->assertJsonValidationErrors('video_url');
+        $this->postJson('/api/admin/videos', [...$payload, 'video_url' => 'https://cdn.example.com/reel.mp4'])
+            ->assertStatus(422)->assertJsonValidationErrors('video_url');
 
-        $this->postJson('/api/admin/videos', [...$payload, 'video_url' => 'media/reels/a.mp4', 'duration_seconds' => 30, 'width' => 720, 'height' => 1280])
-            ->assertCreated()->assertJsonPath('data.height', 1280);
+        $mp4 = $this->postJson('/api/admin/videos', [...$payload, 'video_url' => 'media/reels/a.mp4'])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.transcode_status', ReelTranscode::STATUS_QUEUED);
+        $this->assertNotContains('reel-test', array_column($this->getJson('/api/public/reels')->json('data'), 'slug'));
+
+        $this->postJson('/api/admin/videos', [
+            ...$payload,
+            'title' => 'Reel test MOV',
+            'video_url' => 'media/reels/b.mov',
+        ])->assertCreated()
+            ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.transcode_status', ReelTranscode::STATUS_QUEUED);
+
+        $this->assertDatabaseHas('reel_transcodes', ['video_id' => $mp4->json('data.id'), 'source_path' => 'media/reels/a.mp4']);
 
         // Une vidéo classique garde ses règles : le WebM reste accepté.
         $this->postJson('/api/admin/videos', [...$payload, 'is_reel' => false, 'title' => 'Vidéo classique', 'video_url' => 'media/videos/a.webm'])
@@ -209,17 +233,92 @@ class ReelsPlaybackTest extends TestCase
         $this->editor();
         Bus::fake();
 
-        $id = $this->postJson('/api/admin/videos', [
+        $transcoder = Mockery::mock(ReelTranscoder::class);
+        $transcoder->shouldReceive('cleanupTemporaryFiles')->once();
+        $transcoder->shouldReceive('process')->once()->andReturn([
+            'video_url' => 'media/reels/processed/1-test.mp4',
+            'duration_seconds' => 30,
+            'width' => 720,
+            'height' => 1280,
+            'generated_path' => null,
+        ]);
+        $this->instance(ReelTranscoder::class, $transcoder);
+
+        $created = $this->postJson('/api/admin/videos', [
             'title' => 'Reel', 'source_type' => 'upload', 'video_url' => 'media/r.mp4',
             'status' => 'published', 'is_reel' => true, 'published_at' => now()->subMinute()->toISOString(),
-        ])->assertCreated()->json('data.id');
+        ])->assertCreated()
+            ->assertJsonPath('data.status', 'draft')
+            ->json('data');
+        $id = $created['id'];
 
+        Bus::assertNotDispatched(SendReelPushNotification::class);
+        $this->artisan('reels:process-transcode')->assertSuccessful();
+        $this->assertDatabaseHas('videos', ['id' => $id, 'status' => 'published', 'video_url' => 'media/reels/processed/1-test.mp4']);
+        $this->getJson("/api/public/reels/{$created['slug']}")
+            ->assertOk()
+            ->assertJsonPath('data.playback_url', Storage::disk('public')->url('media/reels/processed/1-test.mp4'));
         Bus::assertDispatchedTimes(SendReelPushNotification::class, 1);
 
         $this->putJson("/api/admin/videos/{$id}", ['title' => 'Reel modifié'])->assertOk();
         $this->artisan('reels:notify-due')->assertSuccessful();
 
         Bus::assertDispatchedTimes(SendReelPushNotification::class, 1);
+    }
+
+    public function test_failed_conversion_keeps_reel_unpublished_and_reports_error(): void
+    {
+        $this->editor();
+        Bus::fake();
+
+        $transcoder = Mockery::mock(ReelTranscoder::class);
+        $transcoder->shouldReceive('cleanupTemporaryFiles')->once();
+        $transcoder->shouldReceive('process')->once()->andThrow(new RuntimeException('ffmpeg failed'));
+        $this->instance(ReelTranscoder::class, $transcoder);
+
+        $id = $this->postJson('/api/admin/videos', [
+            'title' => 'Reel MOV en attente',
+            'source_type' => 'upload',
+            'video_url' => 'media/reel.mov',
+            'status' => 'published',
+            'is_reel' => true,
+            'published_at' => now()->subMinute()->toISOString(),
+        ])->assertCreated()->json('data.id');
+
+        $this->artisan('reels:process-transcode')->assertFailed();
+        $this->assertDatabaseHas('videos', ['id' => $id, 'status' => 'draft']);
+        $this->assertDatabaseHas('reel_transcodes', ['video_id' => $id, 'status' => ReelTranscode::STATUS_FAILED]);
+        $this->getJson("/api/admin/videos/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.transcode_status', ReelTranscode::STATUS_FAILED)
+            ->assertJsonPath('data.transcode_error', 'La vidéo n’a pas pu être vérifiée ou convertie. Réenregistrez le reel après avoir corrigé le fichier.');
+        Bus::assertNotDispatched(SendReelPushNotification::class);
+    }
+
+    public function test_only_one_worker_can_hold_the_transcoding_lock(): void
+    {
+        $lockPath = storage_path('framework/testing/reel-worker-lock-test.lock');
+        if (! is_dir(dirname($lockPath))) {
+            mkdir(dirname($lockPath), 0700, true);
+        }
+        config(['reel-transcoding.worker_lock_file' => $lockPath]);
+
+        $heldLock = fopen($lockPath, 'c');
+        $this->assertIsResource($heldLock);
+        $this->assertTrue(flock($heldLock, LOCK_EX | LOCK_NB));
+
+        $transcoder = Mockery::mock(ReelTranscoder::class);
+        $transcoder->shouldNotReceive('cleanupTemporaryFiles');
+        $transcoder->shouldNotReceive('process');
+        $this->instance(ReelTranscoder::class, $transcoder);
+
+        try {
+            $this->artisan('reels:process-transcode')->assertSuccessful();
+        } finally {
+            flock($heldLock, LOCK_UN);
+            fclose($heldLock);
+            unlink($lockPath);
+        }
     }
 
     public function test_no_push_when_disabled_draft_or_not_a_reel(): void
@@ -255,7 +354,7 @@ class ReelsPlaybackTest extends TestCase
     {
         $reel = $this->reel('j1', ['push_sent_at' => now()]);
 
-        $fcm = \Mockery::mock(\App\Services\Fcm\FcmClient::class);
+        $fcm = Mockery::mock(FcmClient::class);
         $fcm->shouldReceive('isConfigured')->andReturn(true);
         $fcm->shouldReceive('sendToTopics')->once()->withArgs(function ($topics, $title, $body, $data) {
             return $topics === ['reels'] && $data['type'] === 'reel' && $data['slug'] === 'j1'
@@ -264,7 +363,7 @@ class ReelsPlaybackTest extends TestCase
         (new SendReelPushNotification($reel))->handle($fcm);
         $this->assertNotNull($reel->fresh()->push_sent_at);
 
-        $off = \Mockery::mock(\App\Services\Fcm\FcmClient::class);
+        $off = Mockery::mock(FcmClient::class);
         $off->shouldReceive('isConfigured')->andReturn(false);
         (new SendReelPushNotification($reel))->handle($off);
         $this->assertNull($reel->fresh()->push_sent_at);
@@ -274,7 +373,7 @@ class ReelsPlaybackTest extends TestCase
     {
         // La migration marque les reels déjà publiés : on rejoue sa requête.
         $old = $this->reel('vieux', ['push_sent_at' => null]);
-        \Illuminate\Support\Facades\DB::table('videos')->where('is_reel', true)->where('status', 'published')
+        DB::table('videos')->where('is_reel', true)->where('status', 'published')
             ->whereNull('push_sent_at')->update(['push_sent_at' => now()]);
 
         Bus::fake();

@@ -30,6 +30,8 @@ class VideoResource extends JsonResource
             'push_sent_at' => $this->push_sent_at,
             'published_at' => $this->published_at,
             'author' => UserResource::make($this->whenLoaded('author')),
+            'transcode_status' => $this->whenLoaded('transcode', fn () => $this->transcode?->status),
+            'transcode_error' => $this->whenLoaded('transcode', fn () => $this->transcode?->last_error),
             'created_at' => $this->created_at,
         ];
     }

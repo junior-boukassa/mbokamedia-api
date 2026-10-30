@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Storage;
  * Ce que l'application mobile peut lire d'un reel, sans jamais passer par YouTube.
  *
  * Deux cas seulement :
- *  - un fichier envoyé depuis le dashboard (`source_type = upload`), en MP4 (ou
- *    M4V/MOV, que iOS comme Android lisent) ;
+ *  - un fichier envoyé depuis le dashboard (`source_type = upload`), en MP4
+ *    (les anciens M4V/MOV restent lisibles ici ; les nouveaux reels uploadés
+ *    sont vérifiés et normalisés avant leur publication) ;
  *  - une adresse directe en `https` vers un `.mp4` ou un `.m3u8`.
  *
  * YouTube, `embed` et tout le reste donnent `null` : la vidéo reste visible sur

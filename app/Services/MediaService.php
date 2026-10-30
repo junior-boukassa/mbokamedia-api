@@ -17,13 +17,14 @@ class MediaService
         $directory = trim(config('api.media.directory', 'media'), '/').'/'.now()->format('Y/m');
         $filename = Str::uuid()->toString().'.'.$file->getClientOriginalExtension();
         $path = $file->storeAs($directory, $filename, $disk);
+        $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath()) ?: $file->getClientMimeType();
 
         return Medium::query()->create([
             'name' => $attributes['name'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
             'disk' => $disk,
             'path' => $path,
             'url' => Storage::disk($disk)->url($path),
-            'mime_type' => $file->getClientMimeType(),
+            'mime_type' => $mimeType,
             'extension' => $file->getClientOriginalExtension(),
             'size' => $file->getSize(),
             'type' => $this->detectType($file),
@@ -40,7 +41,7 @@ class MediaService
 
     protected function detectType(UploadedFile $file): MediaType
     {
-        $mimeType = $file->getClientMimeType() ?? '';
+        $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath()) ?: '';
 
         return match (true) {
             str_starts_with($mimeType, 'image/') => MediaType::Image,

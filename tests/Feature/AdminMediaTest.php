@@ -66,4 +66,39 @@ class AdminMediaTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['file']);
     }
+
+    public function test_reel_upload_accepts_real_mov_and_rejects_a_mismatched_file_type(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+
+        $movHeader = pack('N', 20).'ftypqt  '.pack('N', 0).'qt  ';
+        $response = $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('reel.mov', $movHeader),
+            'purpose' => 'reel',
+        ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.mime_type', 'video/quicktime');
+
+        $mp4Header = pack('N', 20).'ftypisom'.pack('N', 0).'isom';
+        $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('reel.mp4', $mp4Header),
+            'purpose' => 'reel',
+        ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('data.mime_type', 'video/mp4');
+
+        $invalid = $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('reel.mov', 'not a video'),
+            'purpose' => 'reel',
+        ], ['Accept' => 'application/json']);
+
+        $invalid->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
 }

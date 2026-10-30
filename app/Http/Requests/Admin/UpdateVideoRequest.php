@@ -64,7 +64,7 @@ class UpdateVideoRequest extends FormRequest
                     ? $this->input('source_type')
                     : ($video?->source_type?->value);
 
-                $this->ensureReelIsMp4(
+                $this->ensureReelHasSupportedContainer(
                     $validator,
                     $this->has('is_reel') ? $this->boolean('is_reel') : (bool) $video?->is_reel,
                     $sourceType,
