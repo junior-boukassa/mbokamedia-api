@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\ArticleController as AdminArticleController;
 use App\Http\Controllers\Api\Admin\AdminAuditLogController;
 use App\Http\Controllers\Api\Admin\AdvertisingRequestController as AdminAdvertisingRequestController;
+use App\Http\Controllers\Api\Admin\BriefingController as AdminBriefingController;
 use App\Http\Controllers\Api\Admin\BreakingNewsController as AdminBreakingNewsController;
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\CurrentUserController;
 use App\Http\Controllers\Api\Public\ArticleController as PublicArticleController;
 use App\Http\Controllers\Api\Public\AdvertisingRequestController as PublicAdvertisingRequestController;
+use App\Http\Controllers\Api\Public\BriefingController as PublicBriefingController;
 use App\Http\Controllers\Api\Public\BreakingNewsController as PublicBreakingNewsController;
 use App\Http\Controllers\Api\Public\CategoryController as PublicCategoryController;
 use App\Http\Controllers\Api\Public\ContactController as PublicContactController;
@@ -90,6 +92,10 @@ Route::prefix('public')->group(function (): void {
     // 30 vues par minute et par adresse IP : assez pour un lecteur qui enchaîne
     // les reels, trop peu pour gonfler un compteur à la main.
     Route::post('reels/{slug}/view', [PublicReelController::class, 'view'])->middleware('throttle:30,1');
+    Route::get('briefings', [PublicBriefingController::class, 'index']);
+    Route::get('briefings/latest', [PublicBriefingController::class, 'latest']);
+    Route::get('briefings/{briefing}', [PublicBriefingController::class, 'show']);
+    Route::get('briefings/{briefing}/audio', [PublicBriefingController::class, 'audio']);
     Route::get('breaking-news', [PublicBreakingNewsController::class, 'index']);
     Route::get('settings', [PublicSettingController::class, 'show']);
     Route::get('featured', [PublicFeaturedSectionController::class, 'index']);
@@ -103,6 +109,10 @@ Route::middleware(['auth:sanctum', 'admin.panel', 'throttle:api'])->prefix('admi
     Route::get('dashboard/stats', DashboardController::class);
 
     Route::apiResource('articles', AdminArticleController::class);
+    Route::apiResource('briefings', AdminBriefingController::class);
+    Route::get('briefings/{briefing}/audio', [AdminBriefingController::class, 'audio']);
+    Route::post('briefings/{briefing}/audio', [AdminBriefingController::class, 'uploadAudio']);
+    Route::post('briefings/{briefing}/retry-audio', [AdminBriefingController::class, 'retryAudio']);
     Route::apiResource('categories', AdminCategoryController::class);
     Route::apiResource('tags', AdminTagController::class);
     Route::apiResource('videos', AdminVideoController::class);
