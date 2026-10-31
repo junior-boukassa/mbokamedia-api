@@ -43,10 +43,20 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
+        RateLimiter::for('auth-sensitive', static function (Request $request): Limit {
+            return Limit::perMinute((int) config('api.rate_limits.auth_sensitive', 10))
+                ->by($request->ip());
+        });
+
+        RateLimiter::for('public-submissions', static function (Request $request): Limit {
+            return Limit::perMinute((int) config('api.rate_limits.public_submissions', 5))
+                ->by($request->ip());
+        });
+
         RateLimiter::for('api', static function (Request $request): Limit {
             $key = (string) ($request->user()?->getAuthIdentifier() ?: $request->ip());
 
-            return Limit::perMinute((int) env('API_RATE_LIMIT', 60))
+            return Limit::perMinute((int) config('api.rate_limits.api', 60))
                 ->by($key)
                 ->response(static function () {
                     return response()->json([

@@ -83,8 +83,17 @@ class AuthController extends ApiController
             return $this->error('A bearer token is required to refresh the session.', 401);
         }
 
-        $refreshedToken = Auth::guard('api')->setToken($token)->refresh();
-        $user = Auth::guard('api')->setToken($refreshedToken)->user();
+        $guard = Auth::guard('api');
+        $refreshedToken = $guard->setToken($token)->refresh();
+        $guard->setToken($refreshedToken);
+        $userId = $guard->getPayload()->get('sub');
+        $user = User::query()->find($userId);
+
+        if (! $user?->is_active) {
+            $guard->logout();
+
+            return $this->error('This account is inactive.', 403);
+        }
 
         return $this->success(
             $this->tokenPayload($refreshedToken, $user),

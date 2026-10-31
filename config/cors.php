@@ -1,13 +1,19 @@
 <?php
 
 $defaultOrigins = array_values(array_filter([
-    env('FRONTEND_URL', 'http://localhost:3000'),
-    env('ADMIN_URL', 'http://localhost:3001'),
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://localhost:3000',
-    'http://localhost:3001',
+    env('FRONTEND_URL'),
+    env('ADMIN_URL'),
 ]));
+
+if (in_array(env('APP_ENV', 'production'), ['local', 'testing'], true)) {
+    $defaultOrigins = [
+        ...$defaultOrigins,
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://localhost:3000',
+        'http://localhost:3001',
+    ];
+}
 
 $configuredOrigins = array_values(array_filter(array_map(
     'trim',

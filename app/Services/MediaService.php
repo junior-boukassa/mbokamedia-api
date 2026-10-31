@@ -15,9 +15,10 @@ class MediaService
     {
         $disk = $this->resolveDisk();
         $directory = trim(config('api.media.directory', 'media'), '/').'/'.now()->format('Y/m');
-        $filename = Str::uuid()->toString().'.'.$file->getClientOriginalExtension();
+        $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath()) ?: '';
+        $extension = $this->resolveExtension($mimeType, $file->getClientOriginalExtension());
+        $filename = Str::uuid()->toString().'.'.$extension;
         $path = $file->storeAs($directory, $filename, $disk);
-        $mimeType = (new \finfo(FILEINFO_MIME_TYPE))->file($file->getRealPath()) ?: $file->getClientMimeType();
 
         return Medium::query()->create([
             'name' => $attributes['name'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME),
@@ -50,6 +51,29 @@ class MediaService
             in_array($mimeType, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'], true) => MediaType::Document,
             default => MediaType::Other,
         };
+    }
+
+    protected function resolveExtension(string $mimeType, string $clientExtension): string
+    {
+        $extension = strtolower($clientExtension);
+        $allowedExtensionsByMime = [
+            'image/jpeg' => ['jpg' => 'jpg', 'jpeg' => 'jpg'],
+            'image/png' => ['png' => 'png'],
+            'image/webp' => ['webp' => 'webp'],
+            'image/gif' => ['gif' => 'gif'],
+            'video/mp4' => ['mp4' => 'mp4', 'm4v' => 'm4v'],
+            'application/mp4' => ['mp4' => 'mp4', 'm4v' => 'm4v'],
+            'video/webm' => ['webm' => 'webm'],
+            'video/quicktime' => ['mov' => 'mov'],
+            'video/x-m4v' => ['m4v' => 'm4v'],
+            'video/ogg' => ['ogg' => 'ogg'],
+        ];
+
+        if (! isset($allowedExtensionsByMime[$mimeType][$extension])) {
+            throw new \InvalidArgumentException('Unsupported media type or extension.');
+        }
+
+        return $allowedExtensionsByMime[$mimeType][$extension];
     }
 
     protected function resolveDisk(): string

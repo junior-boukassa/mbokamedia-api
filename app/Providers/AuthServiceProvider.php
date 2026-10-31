@@ -6,6 +6,7 @@ use App\Models\AdminAuditLog;
 use App\Models\AdvertisingRequest;
 use App\Models\Article;
 use App\Models\BreakingNews;
+use App\Models\Briefing;
 use App\Models\Category;
 use App\Models\Contact;
 use App\Models\FeaturedSection;
@@ -19,6 +20,7 @@ use App\Policies\AdminAuditLogPolicy;
 use App\Policies\AdvertisingRequestPolicy;
 use App\Policies\ArticlePolicy;
 use App\Policies\BreakingNewsPolicy;
+use App\Policies\BriefingPolicy;
 use App\Policies\CategoryPolicy;
 use App\Policies\ContactPolicy;
 use App\Policies\FeaturedSectionPolicy;
@@ -38,6 +40,7 @@ class AuthServiceProvider extends ServiceProvider
         AdvertisingRequest::class => AdvertisingRequestPolicy::class,
         Article::class => ArticlePolicy::class,
         BreakingNews::class => BreakingNewsPolicy::class,
+        Briefing::class => BriefingPolicy::class,
         Category::class => CategoryPolicy::class,
         Contact::class => ContactPolicy::class,
         FeaturedSection::class => FeaturedSectionPolicy::class,

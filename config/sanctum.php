@@ -20,15 +20,23 @@ $extractStatefulDomains = static function (?string $url): array {
     ]));
 };
 
+$localStatefulDomains = [];
+
+if (in_array(env('APP_ENV', 'production'), ['local', 'testing'], true)) {
+    $localStatefulDomains = [
+        'localhost',
+        'localhost:3000',
+        'localhost:3001',
+        '127.0.0.1',
+        '127.0.0.1:3000',
+        '127.0.0.1:3001',
+        '127.0.0.1:8000',
+        '::1',
+    ];
+}
+
 $defaultStatefulDomains = array_values(array_unique(array_filter([
-    'localhost',
-    'localhost:3000',
-    'localhost:3001',
-    '127.0.0.1',
-    '127.0.0.1:3000',
-    '127.0.0.1:3001',
-    '127.0.0.1:8000',
-    '::1',
+    ...$localStatefulDomains,
     ...$extractStatefulDomains(env('APP_URL')),
     ...$extractStatefulDomains(env('FRONTEND_URL')),
     ...$extractStatefulDomains(env('ADMIN_URL')),

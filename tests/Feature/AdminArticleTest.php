@@ -153,4 +153,34 @@ class AdminArticleTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.author.id', $journalist->id);
     }
+
+    public function test_journalist_can_create_drafts_but_cannot_publish_them(): void
+    {
+        $this->seed();
+
+        $journalist = User::factory()->create();
+        $journalist->assignRole('journalist');
+        Sanctum::actingAs($journalist);
+        $category = Category::factory()->create();
+
+        $draft = $this->postJson('/api/admin/articles', [
+            'title' => 'Brouillon journaliste',
+            'content' => 'Contenu de brouillon.',
+            'status' => 'draft',
+            'category_id' => $category->id,
+        ]);
+        $draft->assertCreated()->assertJsonPath('data.status', 'draft');
+
+        $this->postJson('/api/admin/articles', [
+            'title' => 'Publication interdite',
+            'content' => 'Contenu non autorisé.',
+            'status' => 'published',
+            'category_id' => $category->id,
+        ])->assertForbidden();
+
+        $this->patchJson('/api/admin/articles/'.$draft->json('data.id'), [
+            'status' => 'scheduled',
+            'published_at' => now()->addDay()->toISOString(),
+        ])->assertForbidden();
+    }
 }

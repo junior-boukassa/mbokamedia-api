@@ -48,6 +48,7 @@ class ArticleController extends ApiController
     public function store(StoreArticleRequest $request): JsonResponse
     {
         $this->authorize('create', Article::class);
+        $this->authorizePublicationFields($request->validated());
 
         $article = DB::transaction(function () use ($request) {
             $data = $this->preparePayload($request->validated(), $request->user(), $request->user()->id);
@@ -102,6 +103,7 @@ class ArticleController extends ApiController
     public function update(UpdateArticleRequest $request, Article $article): JsonResponse
     {
         $this->authorize('update', $article);
+        $this->authorizePublicationFields($request->validated(), $article);
 
         $previousStatus = $article->status?->value;
 
@@ -199,5 +201,24 @@ class ArticleController extends ApiController
         $data['featured_image'] = MediaPath::normalize($data['featured_image'] ?? null);
 
         return $data;
+    }
+
+    protected function authorizePublicationFields(array $data, ?Article $article = null): void
+    {
+        $status = $data['status'] ?? null;
+        $currentStatus = $article?->status?->value;
+
+        if ($status !== null && (
+            $status !== ContentStatus::Draft->value
+            || ($article !== null && $status !== $currentStatus)
+        )) {
+            $this->authorize('publish', Article::class);
+        }
+
+        if (array_key_exists('published_at', $data)
+            && $currentStatus !== null
+            && $currentStatus !== ContentStatus::Draft->value) {
+            $this->authorize('publish', Article::class);
+        }
     }
 }

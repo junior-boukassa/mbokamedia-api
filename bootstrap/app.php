@@ -30,6 +30,7 @@ $app = Application::configure(basePath: $basePath)
         ]);
         $middleware->alias([
             'admin.panel' => \App\Http\Middleware\EnsureAdminPanelAccess::class,
+            'api.account.active' => \App\Http\Middleware\EnsureActiveApiAccount::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

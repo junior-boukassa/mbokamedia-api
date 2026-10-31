@@ -14,18 +14,25 @@ use Illuminate\Http\Request;
 
 class ArticleController extends ApiController
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $articles = Article::query()
+            ->published()
             ->with(['author', 'category', 'tags'])
             ->latest()
-            ->paginate((int) config('api.pagination.public_per_page', 12));
+            ->paginate($this->publicPageSize($request));
 
         return $this->paginated(ArticleResource::collection($articles), 'Articles retrieved successfully.');
     }
 
     public function show(Article $article): JsonResponse
     {
+        abort_unless(
+            $article->status?->value === ContentStatus::Published->value
+                && $article->published_at?->isPast(),
+            404,
+        );
+
         return $this->success(
             ArticleResource::make($article->loadMissing(['author', 'category', 'tags'])),
             'Article retrieved successfully.',
@@ -34,6 +41,9 @@ class ArticleController extends ApiController
 
     public function store(StoreArticleRequest $request): JsonResponse
     {
+        $this->authorize('create', Article::class);
+        $this->authorizePublicationFields($request->validated());
+
         $article = new Article();
         $this->fillArticle($article, $request, $request->user()->id);
         $article->save();
@@ -47,9 +57,8 @@ class ArticleController extends ApiController
 
     public function update(UpdateArticleRequest $request, Article $article): JsonResponse
     {
-        if ($article->author_id !== $request->user()->id) {
-            return $this->error('You can only update your own articles.', 403);
-        }
+        $this->authorize('update', $article);
+        $this->authorizePublicationFields($request->validated(), $article);
 
         $this->fillArticle($article, $request, $article->author_id, partial: true);
         $article->save();
@@ -62,13 +71,38 @@ class ArticleController extends ApiController
 
     public function destroy(Request $request, Article $article): JsonResponse
     {
-        if ($article->author_id !== $request->user()->id) {
-            return $this->error('You can only delete your own articles.', 403);
-        }
+        $this->authorize('delete', $article);
 
         $article->delete();
 
         return $this->success(null, 'Article deleted successfully.');
+    }
+
+    protected function authorizePublicationFields(array $validated, ?Article $article = null): void
+    {
+        $status = $validated['status'] ?? null;
+        $currentStatus = $article?->status?->value;
+
+        if ($status !== null && (
+            $status !== ContentStatus::Draft->value
+            || ($article !== null && $status !== $currentStatus)
+        )) {
+            $this->authorize('publish', Article::class);
+        }
+
+        if (array_key_exists('published_at', $validated)
+            && $currentStatus !== null
+            && $currentStatus !== ContentStatus::Draft->value) {
+            $this->authorize('publish', Article::class);
+        }
+    }
+
+    protected function publicPageSize(Request $request): int
+    {
+        return min(50, max(1, (int) $request->integer(
+            'per_page',
+            config('api.pagination.public_per_page', 12),
+        )));
     }
 
     protected function fillArticle(Article $article, Request $request, int $authorId, bool $partial = false): void

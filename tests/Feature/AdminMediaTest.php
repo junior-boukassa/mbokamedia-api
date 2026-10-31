@@ -101,4 +101,36 @@ class AdminMediaTest extends TestCase
         $invalid->assertUnprocessable()
             ->assertJsonValidationErrors(['file']);
     }
+
+    public function test_generic_media_upload_rejects_executables_and_preserves_supported_video_uploads(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+
+        $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('script.php', '<?php echo "bad";'),
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+
+        $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->image('spoofed.php'),
+        ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+
+        $mp4Header = pack('N', 20).'ftypisom'.pack('N', 0).'isom';
+        $response = $this->post('/api/admin/media', [
+            'file' => UploadedFile::fake()->createWithContent('video.mp4', $mp4Header),
+        ], ['Accept' => 'application/json']);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.mime_type', 'video/mp4');
+
+        $this->assertStringEndsWith('.mp4', $response->json('data.path'));
+    }
 }

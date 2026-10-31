@@ -3,7 +3,12 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Models\Article;
+use App\Models\Category;
+use App\Models\User;
 use Tests\TestCase;
+use Illuminate\Support\Facades\Auth;
+use Tymon\JWTAuth\Token;
 
 class ApiV1AuthAndArticlesTest extends TestCase
 {
@@ -16,7 +21,7 @@ class ApiV1AuthAndArticlesTest extends TestCase
         config()->set('jwt.secret', str_repeat('a', 64));
     }
 
-    public function test_user_can_register_login_and_manage_articles_via_v1_api(): void
+    public function test_public_registration_does_not_grant_article_permissions(): void
     {
         $registerResponse = $this->postJson('/api/v1/auth/register', [
             'name' => 'API User',
@@ -45,38 +50,199 @@ class ApiV1AuthAndArticlesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'ok');
 
-        $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
+        $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/articles', [
                 'title' => 'Mon premier article',
                 'content' => 'Contenu de demonstration',
                 'status' => 'published',
-            ]);
-
-        $articleId = $createResponse->json('data.id');
-
-        $createResponse
-            ->assertCreated()
-            ->assertJsonPath('data.title', 'Mon premier article')
-            ->assertJsonPath('data.status', 'published');
+            ])
+            ->assertForbidden();
 
         $this->postJson('/api/v1/auth/login', [
             'email' => 'api@example.com',
             'password' => 'Password123',
         ])->assertOk();
 
+        $this->assertDatabaseCount('articles', 0);
+    }
+
+    public function test_public_v1_article_endpoints_only_return_published_articles(): void
+    {
+        $published = Article::factory()->create([
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+        $draft = Article::factory()->create([
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+        $scheduled = Article::factory()->create([
+            'status' => 'scheduled',
+            'published_at' => now()->addDay(),
+        ]);
+
         $this->getJson('/api/v1/articles')
             ->assertOk()
-            ->assertJsonCount(1, 'data');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $published->id);
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->patchJson("/api/v1/articles/{$articleId}", [
-                'title' => 'Article modifie',
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.title', 'Article modifie');
+        $this->getJson("/api/v1/articles/{$published->id}")->assertOk();
+        $this->getJson("/api/v1/articles/{$draft->id}")->assertNotFound();
+        $this->getJson("/api/v1/articles/{$scheduled->id}")->assertNotFound();
+    }
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->deleteJson("/api/v1/articles/{$articleId}")
+    public function test_journalist_can_create_own_drafts_but_cannot_publish_or_mutate_another_article(): void
+    {
+        $this->seed();
+        $category = Category::factory()->create();
+
+        $journalist = User::factory()->create();
+        $journalist->assignRole('journalist');
+        $journalistToken = auth('api')->login($journalist);
+
+        $draftResponse = $this->withToken($journalistToken)->postJson('/api/v1/articles', [
+            'title' => 'Brouillon journaliste',
+            'content' => 'Contenu de brouillon.',
+            'category_id' => $category->id,
+        ]);
+        $draftResponse->assertCreated()->assertJsonPath('data.status', 'draft');
+        $draftId = $draftResponse->json('data.id');
+
+        $this->withToken($journalistToken)->patchJson("/api/v1/articles/{$draftId}", [
+            'status' => 'published',
+        ])->assertForbidden();
+
+        $otherAuthor = User::factory()->create();
+        $otherAuthor->assignRole('editor');
+        $otherArticle = Article::factory()->create([
+            'author_id' => $otherAuthor->id,
+            'status' => 'draft',
+            'published_at' => null,
+        ]);
+        $this->withToken($journalistToken)->patchJson("/api/v1/articles/{$otherArticle->id}", [
+            'title' => 'Modification interdite',
+        ])->assertForbidden();
+        $this->withToken($journalistToken)->deleteJson("/api/v1/articles/{$otherArticle->id}")->assertForbidden();
+    }
+
+    public function test_editor_with_article_permissions_can_publish_and_delete_v1_articles(): void
+    {
+        $this->seed();
+        $category = Category::factory()->create();
+        $editor = User::factory()->create();
+        $editor->assignRole('editor');
+        $editorToken = auth('api')->login($editor);
+
+        $created = $this->withToken($editorToken)->postJson('/api/v1/articles', [
+            'title' => 'Article éditeur',
+            'content' => 'Contenu éditorial.',
+            'category_id' => $category->id,
+            'status' => 'published',
+        ]);
+        $created->assertCreated()->assertJsonPath('data.status', 'published');
+        $articleId = $created->json('data.id');
+
+        $this->withToken($editorToken)->patchJson("/api/v1/articles/{$articleId}", [
+            'title' => 'Article modifié',
+        ])->assertOk()->assertJsonPath('data.title', 'Article modifié');
+        $this->withToken($editorToken)->deleteJson("/api/v1/articles/{$articleId}")->assertOk();
+    }
+
+    public function test_v1_article_pagination_is_capped(): void
+    {
+        $this->getJson('/api/v1/articles?per_page=5000')->assertOk()
+            ->assertJsonPath('meta.pagination.per_page', 50);
+    }
+
+    public function test_inactive_accounts_cannot_use_existing_jwt_access_tokens(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $token = auth('api')->login($user);
+
+        User::query()->whereKey($user->id)->update(['is_active' => false]);
+        Auth::forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/auth/me')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'This account is inactive.');
+    }
+
+    public function test_inactive_accounts_cannot_refresh_jwt_tokens(): void
+    {
+        $user = User::factory()->create(['is_active' => false]);
+        $token = auth('api')->login($user);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/auth/refresh')
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This account is inactive.')
+            ->assertJsonMissingPath('data.access_token');
+    }
+
+    public function test_jwt_logout_revokes_the_access_token(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $token = auth('api')->login($user);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/auth/logout')
             ->assertOk();
+
+        Auth::forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/api/v1/auth/me')
+            ->assertUnauthorized();
+    }
+
+    public function test_jwt_refresh_rotates_the_access_token(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $token = auth('api')->login($user);
+
+        $response = $this->withToken($token)
+            ->postJson('/api/v1/auth/refresh')
+            ->assertOk()
+            ->assertJsonPath('data.token_type', 'Bearer');
+        $refreshedToken = $response->json('data.access_token');
+        $this->assertNotSame($token, $refreshedToken);
+        $oldPayload = app('tymon.jwt.manager')->decode(new Token($token), false);
+        $this->assertTrue(app('tymon.jwt.blacklist')->has($oldPayload));
+    }
+
+    public function test_v1_registration_is_rate_limited(): void
+    {
+        config()->set('api.rate_limits.auth_sensitive', 1);
+
+        $payload = [
+            'name' => 'API User',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+        ];
+
+        $this->postJson('/api/v1/auth/register', [...$payload, 'email' => 'first@example.com'])
+            ->assertCreated();
+        $this->postJson('/api/v1/auth/register', [...$payload, 'email' => 'second@example.com'])
+            ->assertStatus(429);
+    }
+
+    public function test_authenticated_article_mutations_are_rate_limited(): void
+    {
+        $this->seed();
+        config()->set('api.rate_limits.api', 1);
+        $editor = User::factory()->create();
+        $editor->assignRole('editor');
+        $token = auth('api')->login($editor);
+        $payload = [
+            'title' => 'Article éditeur',
+            'content' => 'Contenu éditorial.',
+            'status' => 'draft',
+        ];
+
+        $this->withToken($token)->postJson('/api/v1/articles', $payload)
+            ->assertCreated();
+        $this->withToken($token)->postJson('/api/v1/articles', [...$payload, 'title' => 'Autre article'])
+            ->assertStatus(429);
     }
 }
