@@ -108,7 +108,12 @@ class ArticleController extends ApiController
         $previousStatus = $article->status?->value;
 
         DB::transaction(function () use ($request, $article): void {
-            $article->update($this->preparePayload($request->validated(), $request->user(), $article->author_id));
+            $article->update($this->preparePayload(
+                $request->validated(),
+                $request->user(),
+                $article->author_id,
+                $article,
+            ));
 
             if ($request->has('tag_ids')) {
                 $article->tags()->sync($request->input('tag_ids', []));
@@ -180,10 +185,17 @@ class ArticleController extends ApiController
         return $this->success(null, 'Article deleted successfully.');
     }
 
-    protected function preparePayload(array $data, User $actor, int $defaultAuthorId): array
+    protected function preparePayload(
+        array $data,
+        User $actor,
+        int $defaultAuthorId,
+        ?Article $article = null,
+    ): array
     {
-        $publishedAt = isset($data['published_at']) ? Carbon::parse($data['published_at']) : null;
-        $status = $data['status'] ?? ContentStatus::Draft->value;
+        $publishedAt = array_key_exists('published_at', $data)
+            ? (isset($data['published_at']) ? Carbon::parse($data['published_at']) : null)
+            : $article?->published_at;
+        $status = $data['status'] ?? $article?->status?->value ?? ContentStatus::Draft->value;
 
         if ($status === ContentStatus::Published->value && $publishedAt === null) {
             $publishedAt = now();

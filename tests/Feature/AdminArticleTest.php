@@ -141,6 +141,8 @@ class AdminArticleTest extends TestCase
         $otherAuthor->assignRole('editor');
         $article = Article::factory()->create([
             'author_id' => $journalist->id,
+            'status' => 'draft',
+            'published_at' => null,
         ]);
 
         $response = $this->putJson("/api/admin/articles/{$article->id}", [
@@ -182,5 +184,46 @@ class AdminArticleTest extends TestCase
             'status' => 'scheduled',
             'published_at' => now()->addDay()->toISOString(),
         ])->assertForbidden();
+    }
+
+    public function test_journalist_cannot_edit_own_published_article_and_editor_patch_preserves_publication(): void
+    {
+        $this->seed();
+        $journalist = User::factory()->create();
+        $journalist->assignRole('journalist');
+        Sanctum::actingAs($journalist);
+        $article = Article::factory()->create([
+            'author_id' => $journalist->id,
+            'title' => 'Article publié',
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+
+        $this->patchJson("/api/admin/articles/{$article->id}", [
+            'content' => 'Modification non autorisée.',
+        ])->assertForbidden();
+        $this->assertDatabaseHas('articles', [
+            'id' => $article->id,
+            'title' => 'Article publié',
+            'status' => 'published',
+        ]);
+
+        $editor = User::factory()->create();
+        $editor->assignRole('editor');
+        Sanctum::actingAs($editor);
+        $publishedAt = $article->published_at->toISOString();
+
+        $this->patchJson("/api/admin/articles/{$article->id}", [
+            'title' => 'Titre corrigé',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.title', 'Titre corrigé');
+
+        $this->assertDatabaseHas('articles', [
+            'id' => $article->id,
+            'title' => 'Titre corrigé',
+            'status' => 'published',
+        ]);
+        $this->assertSame($publishedAt, $article->fresh()->published_at->toISOString());
     }
 }

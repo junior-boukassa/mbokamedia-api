@@ -125,6 +125,36 @@ class ApiV1AuthAndArticlesTest extends TestCase
         $this->withToken($journalistToken)->deleteJson("/api/v1/articles/{$otherArticle->id}")->assertForbidden();
     }
 
+    public function test_journalist_cannot_edit_the_content_of_an_own_published_article(): void
+    {
+        $this->seed();
+        $journalist = User::factory()->create();
+        $journalist->assignRole('journalist');
+        $journalistToken = auth('api')->login($journalist);
+        $published = Article::factory()->create([
+            'author_id' => $journalist->id,
+            'title' => 'Titre publié',
+            'content' => 'Texte déjà publié.',
+            'status' => 'published',
+            'published_at' => now()->subMinute(),
+        ]);
+
+        $this->withToken($journalistToken)
+            ->patchJson("/api/v1/articles/{$published->id}", [
+                'content' => 'Modification non autorisée.',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('articles', [
+            'id' => $published->id,
+            'content' => 'Texte déjà publié.',
+            'status' => 'published',
+        ]);
+        $this->getJson("/api/v1/articles/{$published->id}")
+            ->assertOk()
+            ->assertJsonPath('data.content', 'Texte déjà publié.');
+    }
+
     public function test_editor_with_article_permissions_can_publish_and_delete_v1_articles(): void
     {
         $this->seed();
@@ -144,7 +174,9 @@ class ApiV1AuthAndArticlesTest extends TestCase
 
         $this->withToken($editorToken)->patchJson("/api/v1/articles/{$articleId}", [
             'title' => 'Article modifié',
-        ])->assertOk()->assertJsonPath('data.title', 'Article modifié');
+        ])->assertOk()
+            ->assertJsonPath('data.title', 'Article modifié')
+            ->assertJsonPath('data.status', 'published');
         $this->withToken($editorToken)->deleteJson("/api/v1/articles/{$articleId}")->assertOk();
     }
 

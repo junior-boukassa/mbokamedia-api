@@ -2,10 +2,45 @@
 
 namespace Tests\Unit;
 
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 use Tests\TestCase;
 
 class SecurityConfigTest extends TestCase
 {
+    public function test_csrf_exceptions_are_limited_to_public_contact_and_newsletter(): void
+    {
+        $excludedPaths = app(ValidateCsrfToken::class)->getExcludedPaths();
+
+        $this->assertEqualsCanonicalizing([
+            'api/public/contact',
+            'api/public/newsletter/subscribe',
+        ], $excludedPaths);
+        $this->assertNotContains('api/admin/articles', $excludedPaths);
+        $this->assertNotContains('api/admin/briefings', $excludedPaths);
+    }
+
+    public function test_missing_csrf_token_is_rejected_for_admin_mutations(): void
+    {
+        $middleware = new class(app(), app('encrypter')) extends ValidateCsrfToken
+        {
+            protected function runningUnitTests(): bool
+            {
+                return false;
+            }
+        };
+        $session = app('session')->driver();
+        $session->start();
+        $session->put('_token', 'expected-csrf-token');
+        $request = Request::create('/api/admin/articles', 'POST');
+        $request->setLaravelSession($session);
+
+        $this->expectException(TokenMismatchException::class);
+
+        $middleware->handle($request, static fn () => response()->noContent());
+    }
+
     public function test_cors_configuration_contains_frontend_and_admin_origins(): void
     {
         $allowedOrigins = config('cors.allowed_origins');
@@ -68,6 +103,17 @@ class SecurityConfigTest extends TestCase
                 }
             }
         }
+    }
+
+    public function test_cors_preflight_does_not_reflect_an_untrusted_origin(): void
+    {
+        $response = $this->options('/api/admin/articles', [], [
+            'Origin' => 'https://invalid.example',
+            'Access-Control-Request-Method' => 'POST',
+            'Access-Control-Request-Headers' => 'content-type,x-xsrf-token',
+        ]);
+
+        $this->assertFalse($response->headers->has('Access-Control-Allow-Origin'));
     }
 
     public function test_production_sanctum_stateful_domains_do_not_include_loopback_by_default(): void
