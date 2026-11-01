@@ -16,6 +16,15 @@ class DashboardStatsResource extends JsonResource
             'videos_total' => $this['videos_total'],
             'contacts_total' => $this['contacts_total'],
             'newsletter_subscribers_total' => $this['newsletter_subscribers_total'],
+            'top_articles' => collect($this['top_articles'] ?? [])
+                ->map(fn ($article): array => [
+                    'id' => $article->id,
+                    'title' => $article->title,
+                    'slug' => $article->slug,
+                    'featured_image' => $article->featured_image,
+                    'views_count' => $article->views_count,
+                ])
+                ->values(),
         ];
     }
 }

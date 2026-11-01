@@ -27,6 +27,36 @@ class PublicEndpointsTest extends TestCase
             ]);
     }
 
+    public function test_article_detail_updates_only_its_cumulative_view_counter(): void
+    {
+        $article = Article::factory()->create([
+            'views_count' => 0,
+        ]);
+
+        $this->getJson("/api/public/articles/{$article->slug}")
+            ->assertOk()
+            ->assertJsonPath('data.views_count', 1);
+
+        $this->assertDatabaseHas('articles', [
+            'id' => $article->id,
+            'views_count' => 1,
+        ]);
+    }
+
+    public function test_article_listing_does_not_increment_detail_view_counters(): void
+    {
+        $article = Article::factory()->create([
+            'views_count' => 0,
+        ]);
+
+        $this->getJson('/api/public/articles')->assertOk();
+
+        $this->assertDatabaseHas('articles', [
+            'id' => $article->id,
+            'views_count' => 0,
+        ]);
+    }
+
     public function test_public_article_author_includes_an_absolute_avatar_url(): void
     {
         config()->set('filesystems.disks.public.url', 'https://api.mbokamedia.com/storage');

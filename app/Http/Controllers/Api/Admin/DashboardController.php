@@ -26,6 +26,12 @@ class DashboardController extends ApiController
             'videos_total' => Video::query()->count(),
             'contacts_total' => Contact::query()->count(),
             'newsletter_subscribers_total' => NewsletterSubscriber::query()->where('status', NewsletterStatus::Subscribed)->count(),
+            'top_articles' => Article::query()
+                ->published()
+                ->orderByDesc('views_count')
+                ->orderByDesc('published_at')
+                ->limit(5)
+                ->get(['id', 'title', 'slug', 'featured_image', 'views_count']),
         ]), 'Dashboard stats retrieved successfully.');
     }
 }
