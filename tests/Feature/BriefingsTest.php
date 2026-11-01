@@ -190,6 +190,13 @@ class BriefingsTest extends TestCase
         $this->getJson('/api/admin/briefings')->assertOk();
     }
 
+    public function test_unauthenticated_admin_request_without_json_accept_header_returns_json_401(): void
+    {
+        $this->get('/api/admin/briefings', ['Accept' => '*/*'])
+            ->assertUnauthorized()
+            ->assertExactJson(['message' => 'Unauthenticated.']);
+    }
+
     public function test_unprivileged_admin_cannot_access_briefing_records_or_audio(): void
     {
         $this->seed();

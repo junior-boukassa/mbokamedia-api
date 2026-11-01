@@ -24,6 +24,9 @@ $app = Application::configure(basePath: $basePath)
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(static function (Request $request): ?string {
+            return $request->is('api/*') ? null : route('login');
+        });
         $middleware->validateCsrfTokens(except: [
             'api/public/contact',
             'api/public/newsletter/subscribe',
