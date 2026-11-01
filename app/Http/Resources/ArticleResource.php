@@ -16,6 +16,7 @@ class ArticleResource extends JsonResource
             'excerpt' => $this->excerpt,
             'content' => $this->content,
             'featured_image' => $this->featured_image,
+            'additional_images' => $this->additional_images ?? [],
             'status' => $this->status?->value,
             'is_featured' => $this->is_featured,
             'is_sponsored' => $this->is_sponsored,

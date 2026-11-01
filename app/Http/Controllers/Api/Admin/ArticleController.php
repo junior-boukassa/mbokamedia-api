@@ -22,8 +22,7 @@ class ArticleController extends ApiController
     public function __construct(
         protected ArticlePublicationNotifier $articlePublicationNotifier,
         protected AdminAuditLogger $adminAuditLogger,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -190,8 +189,7 @@ class ArticleController extends ApiController
         User $actor,
         int $defaultAuthorId,
         ?Article $article = null,
-    ): array
-    {
+    ): array {
         $publishedAt = array_key_exists('published_at', $data)
             ? (isset($data['published_at']) ? Carbon::parse($data['published_at']) : null)
             : $article?->published_at;
@@ -211,6 +209,15 @@ class ArticleController extends ApiController
             ? ($data['author_id'] ?? $defaultAuthorId)
             : $actor->id;
         $data['featured_image'] = MediaPath::normalize($data['featured_image'] ?? null);
+        if (array_key_exists('additional_images', $data)) {
+            $data['additional_images'] = collect($data['additional_images'] ?? [])
+                ->map(fn (array $image): array => [
+                    ...$image,
+                    'path' => MediaPath::normalize($image['path']),
+                ])
+                ->values()
+                ->all();
+        }
 
         return $data;
     }

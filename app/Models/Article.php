@@ -22,6 +22,7 @@ class Article extends Model
         'excerpt',
         'content',
         'featured_image',
+        'additional_images',
         'status',
         'category_id',
         'author_id',
@@ -38,6 +39,7 @@ class Article extends Model
         return [
             'status' => ContentStatus::class,
             'published_at' => 'datetime',
+            'additional_images' => 'array',
             'is_featured' => 'boolean',
             'is_sponsored' => 'boolean',
             'views_count' => 'integer',

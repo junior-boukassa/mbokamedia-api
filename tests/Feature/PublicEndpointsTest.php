@@ -57,6 +57,29 @@ class PublicEndpointsTest extends TestCase
         ]);
     }
 
+    public function test_public_article_detail_includes_optional_images_without_changing_primary_image(): void
+    {
+        $article = Article::factory()->create([
+            'featured_image' => 'media/main.jpg',
+            'additional_images' => [
+                [
+                    'path' => 'media/inline.jpg',
+                    'alt_text' => 'Scène de reportage',
+                    'caption' => 'Une scène sur le terrain.',
+                    'credit' => 'Mboka Média',
+                ],
+            ],
+        ]);
+
+        $this->getJson("/api/public/articles/{$article->slug}")
+            ->assertOk()
+            ->assertJsonPath('data.featured_image', 'media/main.jpg')
+            ->assertJsonPath('data.additional_images.0.path', 'media/inline.jpg')
+            ->assertJsonPath('data.additional_images.0.alt_text', 'Scène de reportage')
+            ->assertJsonPath('data.additional_images.0.caption', 'Une scène sur le terrain.')
+            ->assertJsonPath('data.additional_images.0.credit', 'Mboka Média');
+    }
+
     public function test_public_article_author_includes_an_absolute_avatar_url(): void
     {
         config()->set('filesystems.disks.public.url', 'https://api.mbokamedia.com/storage');

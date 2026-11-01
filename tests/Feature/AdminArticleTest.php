@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Article;
 use App\Models\Category;
+use App\Models\Medium;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -47,6 +49,150 @@ class AdminArticleTest extends TestCase
             'target_type' => 'article',
             'status' => 'success',
         ]);
+    }
+
+    public function test_articles_can_be_created_with_zero_one_or_two_additional_library_images(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+        $category = Category::factory()->create();
+        $firstImage = $this->createImageMedia('media/first.jpg');
+        $secondImage = $this->createImageMedia('media/second.jpg');
+
+        $basePayload = [
+            'content' => 'Contenu complet suffisant pour un article de test.',
+            'status' => 'draft',
+            'category_id' => $category->id,
+        ];
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'title' => 'Article sans image secondaire',
+        ])->assertCreated()
+            ->assertJsonCount(0, 'data.additional_images');
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'title' => 'Article avec une image secondaire',
+            'additional_images' => [
+                [
+                    'path' => $firstImage->path,
+                    'alt_text' => 'Vue de la ville',
+                    'caption' => 'Une légende éditoriale.',
+                    'credit' => 'Mboka Média',
+                ],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.additional_images.0.path', $firstImage->path)
+            ->assertJsonPath('data.additional_images.0.alt_text', 'Vue de la ville')
+            ->assertJsonPath('data.additional_images.0.caption', 'Une légende éditoriale.')
+            ->assertJsonPath('data.additional_images.0.credit', 'Mboka Média');
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'title' => 'Article avec deux images secondaires',
+            'additional_images' => [
+                ['path' => $firstImage->path],
+                ['path' => $secondImage->path],
+            ],
+        ])->assertCreated()
+            ->assertJsonCount(2, 'data.additional_images');
+
+        Storage::disk('public')->assertExists($firstImage->path);
+        Storage::disk('public')->assertExists($secondImage->path);
+    }
+
+    public function test_replacing_or_removing_additional_images_never_deletes_shared_media(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+        $oldImage = $this->createImageMedia('media/shared-old.jpg');
+        $replacementImage = $this->createImageMedia('media/shared-new.jpg');
+        $article = Article::factory()->create([
+            'author_id' => $user->id,
+            'additional_images' => [
+                ['path' => $oldImage->path, 'caption' => 'Ancienne légende'],
+            ],
+        ]);
+
+        $this->putJson("/api/admin/articles/{$article->id}", [
+            'additional_images' => [
+                ['path' => $replacementImage->path, 'caption' => 'Nouvelle légende'],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.additional_images.0.path', $replacementImage->path);
+
+        $this->assertSame(
+            [['path' => $replacementImage->path, 'caption' => 'Nouvelle légende']],
+            $article->fresh()->additional_images,
+        );
+
+        $this->putJson("/api/admin/articles/{$article->id}", [
+            'additional_images' => [],
+        ])->assertOk()->assertJsonCount(0, 'data.additional_images');
+
+        Storage::disk('public')->assertExists($oldImage->path);
+        Storage::disk('public')->assertExists($replacementImage->path);
+        $this->assertDatabaseHas('media', ['id' => $oldImage->id]);
+        $this->assertDatabaseHas('media', ['id' => $replacementImage->id]);
+    }
+
+    public function test_additional_images_must_be_public_library_images_and_cannot_exceed_two(): void
+    {
+        $this->seed();
+
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+        Sanctum::actingAs($user);
+        $category = Category::factory()->create();
+        $firstImage = $this->createImageMedia('media/valid.jpg');
+        $secondImage = $this->createImageMedia('media/valid-2.jpg');
+        $video = Medium::query()->create([
+            'name' => 'video.mp4',
+            'disk' => 'public',
+            'path' => 'media/video.mp4',
+            'url' => 'https://api.mbokamedia.com/storage/media/video.mp4',
+            'mime_type' => 'video/mp4',
+            'extension' => 'mp4',
+            'size' => 100,
+            'type' => 'video',
+        ]);
+        $basePayload = [
+            'title' => 'Article images invalides',
+            'content' => 'Contenu suffisant pour valider les règles de la requête.',
+            'status' => 'draft',
+            'category_id' => $category->id,
+        ];
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'additional_images' => [
+                ['path' => $firstImage->path],
+                ['path' => $secondImage->path],
+                ['path' => 'media/third.jpg'],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['additional_images']);
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'additional_images' => [['path' => $video->path]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['additional_images.0.path']);
+
+        $this->postJson('/api/admin/articles', [
+            ...$basePayload,
+            'additional_images' => [['path' => '../../outside.jpg']],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['additional_images.0.path']);
     }
 
     public function test_editor_can_update_and_delete_article(): void
@@ -225,5 +371,21 @@ class AdminArticleTest extends TestCase
             'status' => 'published',
         ]);
         $this->assertSame($publishedAt, $article->fresh()->published_at->toISOString());
+    }
+
+    private function createImageMedia(string $path): Medium
+    {
+        Storage::disk('public')->put($path, 'isolated image test fixture');
+
+        return Medium::query()->create([
+            'name' => basename($path),
+            'disk' => 'public',
+            'path' => $path,
+            'url' => 'https://api.mbokamedia.com/storage/'.$path,
+            'mime_type' => 'image/jpeg',
+            'extension' => 'jpg',
+            'size' => 27,
+            'type' => 'image',
+        ]);
     }
 }

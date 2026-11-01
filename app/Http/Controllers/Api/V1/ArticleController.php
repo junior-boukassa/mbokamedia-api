@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\Article\UpdateArticleRequest;
 use App\Http\Resources\ArticleResource;
 use App\Models\Article;
 use App\Models\Category;
+use App\Support\MediaPath;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -44,7 +45,7 @@ class ArticleController extends ApiController
         $this->authorize('create', Article::class);
         $this->authorizePublicationFields($request->validated());
 
-        $article = new Article();
+        $article = new Article;
         $this->fillArticle($article, $request, $request->user()->id);
         $article->save();
 
@@ -115,6 +116,15 @@ class ArticleController extends ApiController
             'excerpt' => $validated['excerpt'] ?? ($partial ? $article->excerpt : null),
             'content' => $validated['content'] ?? $article->content,
             'featured_image' => $validated['featured_image'] ?? ($partial ? $article->featured_image : null),
+            'additional_images' => array_key_exists('additional_images', $validated)
+                ? collect($validated['additional_images'] ?? [])
+                    ->map(fn (array $image): array => [
+                        ...$image,
+                        'path' => MediaPath::normalize($image['path']),
+                    ])
+                    ->values()
+                    ->all()
+                : ($partial ? $article->additional_images : null),
             'status' => $status,
             'category_id' => $this->resolveCategoryId($validated['category_id'] ?? $article->category_id),
             'author_id' => $authorId,
